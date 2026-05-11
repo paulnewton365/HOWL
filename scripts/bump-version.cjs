@@ -2,7 +2,7 @@
 // Auto-increments the patch version in package.json before each build.
 // Runs as a `prebuild` hook on `npm run build` (locally and on Vercel).
 //
-// Format: MAJOR.MINOR.PATCH — only PATCH is auto-incremented.
+// Format: MAJOR.MINOR.PATCH, only PATCH is auto-incremented.
 // Bump MAJOR or MINOR manually in package.json when shipping a meaningful release.
 
 const fs = require('fs');

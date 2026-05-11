@@ -1,4 +1,4 @@
-// Vercel Serverless Function — proxies requests to the Anthropic API.
+// Vercel Serverless Function, proxies requests to the Anthropic API.
 // Keeps ANTHROPIC_API_KEY server-side. Supports the optional web_search tool
 // so Claude can research the brand at the URL the user submits.
 

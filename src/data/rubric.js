@@ -1,4 +1,4 @@
-// HOWL READ — Diagnostic Framework v2.0
+// HOWL READ. Diagnostic Framework v2.0
 // Six signals, four evidence surfaces, three verdict tiers.
 // Brand-agnostic: applies to any brand trying to be more consequential,
 // not only sustainability or impact brands.
@@ -6,7 +6,7 @@
 export const FRAMEWORK_VERSION = '2.0';
 
 // ============================================================================
-// VERDICT TIERS — HOWL's voice for the overall stance
+// VERDICT TIERS. HOWL's voice for the overall stance
 // ============================================================================
 
 export const VERDICT_TIERS = [
@@ -44,7 +44,7 @@ export function getVerdict(score) {
 }
 
 // ============================================================================
-// EVIDENCE SURFACES — every signal is scored against these four surfaces.
+// EVIDENCE SURFACES, every signal is scored against these four surfaces.
 // Together they cover the seven things a brand is judged on: website, social,
 // AI representation, reputation, trust, third-party conversation, earned media.
 // ============================================================================
@@ -54,7 +54,7 @@ export const SURFACES = [
     id: 'WEBSITE',
     name: 'Website',
     color: '#D85726',
-    description: 'Homepage, About, product pages, blog — any owned digital surface.',
+    description: 'Homepage, About, product pages, blog, any owned digital surface.',
     looks_for: [
       'Voice, headline, and hierarchy on the homepage',
       'How the brand introduces itself in the About page',
@@ -105,7 +105,7 @@ export const SURFACES = [
 export const SURFACE_IDS = SURFACES.map(s => s.id);
 
 // ============================================================================
-// CATEGORIES — broader industry list. The tool applies to any brand.
+// CATEGORIES, broader industry list. The tool applies to any brand.
 // ============================================================================
 
 export const CATEGORIES = [
@@ -148,7 +148,7 @@ export const SIGNALS = [
     thesis: 'Everyone is shouting at the same volume, at the same frequency, at the same time. Integrity is an outlier. The truth stands out. Brands that move people sound like nobody else in their category.',
     strong: [
       'Distinctive voice that sounds like nobody else in the category',
-      'Sharp, identifiable point of view — not hedged or "balanced"',
+      'Sharp, identifiable point of view, not hedged or "balanced"',
       'Owned vocabulary: terms, phrases, or frames the brand introduced',
       'Headlines that would land even without the logo attached',
       'Visible willingness to be disagreed with',
@@ -171,7 +171,7 @@ export const SIGNALS = [
     id: 'INTEGRATION',
     name: 'Integration',
     question: 'Is what makes you distinctive woven into the brand, or quarantined into corporate corners?',
-    thesis: 'The separately housed report. The vanity URL. The Earth Day post. The "About" page nobody reads. When a brand\'s point of view sits outside the brand itself, it becomes performative. The signal of seriousness is integration — when conviction lives in the homepage, product, and campaign, not in a sub-section.',
+    thesis: 'The separately housed report. The vanity URL. The Earth Day post. The "About" page nobody reads. When a brand\'s point of view sits outside the brand itself, it becomes performative. The signal of seriousness is integration, when conviction lives in the homepage, product, and campaign, not in a sub-section.',
     strong: [
       'Brand point of view present on homepage and in core narrative, not just an "About" page',
       'Distinctive positioning shows up in product naming, packaging, or core marketing',
@@ -196,12 +196,12 @@ export const SIGNALS = [
     id: 'IDENTITY',
     name: 'Identity',
     question: 'Is your distinctiveness embodied in who you are, or communicated as a side note?',
-    thesis: 'Consequential brands do not communicate their values. They embody them. The work breaks through when distinctiveness sharpens what a brand stands for and strengthens what it creates — not when it is framed as a sacrifice, a virtue, or a side note.',
+    thesis: 'Consequential brands do not communicate their values. They embody them. The work breaks through when distinctiveness sharpens what a brand stands for and strengthens what it creates, not when it is framed as a sacrifice, a virtue, or a side note.',
     strong: [
       'Remove the brand\'s point of view and the brand fundamentally changes',
       'Distinctiveness is a product attribute, not a marketing layer',
       'Founders, leadership, or culture visibly embody the values',
-      'Benefits framed first, virtues second — "better, full stop"',
+      'Benefits framed first, virtues second, "better, full stop"',
       'Brand identity (name, design, story) would not survive intact without the lens',
     ],
     moderate: [
@@ -221,7 +221,7 @@ export const SIGNALS = [
     id: 'CANDOR',
     name: 'Candor',
     question: 'Are you showing scars as well as vision, or only the polished aspiration?',
-    thesis: 'Audiences have finely tuned BS detectors. Inauthenticity is invisibility. The brands building real belief are honest about complexity — they acknowledge where the work is hardest, admit what they do not yet know, and show progress AND challenges, not just aspiration.',
+    thesis: 'Audiences have finely tuned BS detectors. Inauthenticity is invisibility. The brands building real belief are honest about complexity, they acknowledge where the work is hardest, admit what they do not yet know, and show progress AND challenges, not just aspiration.',
     strong: [
       'Public acknowledgement of trade-offs, limits, or unsolved problems',
       'Progress reported with what is not yet working, not just what is',
@@ -239,7 +239,7 @@ export const SIGNALS = [
       'No acknowledgement of complexity, trade-offs, or unresolved problems',
       'Round numbers, no methodology',
       'No third-party validation visible',
-      'The brand is winning on every front of its own reporting — a credibility flag',
+      'The brand is winning on every front of its own reporting, a credibility flag',
     ],
   },
   {
@@ -277,7 +277,7 @@ export const SIGNALS = [
       'Visible community or third-party amplification of recent work',
       'A recent provocation, stunt, or position that drew commentary',
       'Cadence on owned channels with an identifiable point of view',
-      'Cultural references — collaborators, platforms, partners — that signal the brand sits inside culture, not beside it',
+      'Cultural references, collaborators, platforms, partners, that signal the brand sits inside culture, not beside it',
     ],
     moderate: [
       'Steady earned coverage but mostly reactive or category roundups',
@@ -295,7 +295,7 @@ export const SIGNALS = [
 ];
 
 // ============================================================================
-// RECOMMENDATION PLAYBOOKS — EDGE (strategy) and PLAY (creative)
+// RECOMMENDATION PLAYBOOKS. EDGE (strategy) and PLAY (creative)
 // Reference patterns. The AI generates brand-specific moves at runtime.
 // ============================================================================
 
@@ -318,7 +318,7 @@ export const EDGE_PLAYBOOK = {
   ],
   DESIRE: [
     { title: 'Re-frame from Duty to Desire', description: 'Re-write the top of the messaging hierarchy from instruction language to invitation language. The customer is choosing into a future, not opting out of a problem.' },
-    { title: 'Cultural Vector', description: 'Identify the cultural reference points the audience already moves toward — design, music, sport, food, travel — and route the brand through those. Through, not beside, the things people love.' },
+    { title: 'Cultural Vector', description: 'Identify the cultural reference points the audience already moves toward, design, music, sport, food, travel, and route the brand through those. Through, not beside, the things people love.' },
   ],
   MOMENTUM: [
     { title: 'Earned-First Calendar', description: 'Replace the monthly content calendar with an earned-first calendar: every quarter, one provocation built to be picked up, not pushed out.' },
@@ -332,23 +332,23 @@ export const PLAY_PLAYBOOK = {
     { title: 'Named Adversary', description: 'Pick the specific status quo the brand is against and name it. Run a campaign that makes the adversary impossible to ignore.' },
   ],
   INTEGRATION: [
-    { title: 'Point of View in the Product', description: 'A creative campaign built around moments where distinctiveness shows up in the product itself — packaging, naming, sourcing, ritual. Make the proof the campaign.' },
+    { title: 'Point of View in the Product', description: 'A creative campaign built around moments where distinctiveness shows up in the product itself, packaging, naming, sourcing, ritual. Make the proof the campaign.' },
     { title: 'One Brand, One Story', description: 'Run a single integrated campaign across brand and corporate channels with shared creative, voice, and KPIs. Use it to retire any separate communications calendar.' },
   ],
   IDENTITY: [
     { title: 'Founder Provocation', description: 'A platform that puts founders or leadership in front of culture taking a specific position they would lose sleep defending. Identity built through visible conviction.' },
-    { title: 'The Better Product Spot', description: 'A campaign that argues the product is better — full stop — and treats the distinctive lens as the reason it is better, not as a separate plea.' },
+    { title: 'The Better Product Spot', description: 'A campaign that argues the product is better, full stop, and treats the distinctive lens as the reason it is better, not as a separate plea.' },
   ],
   CANDOR: [
     { title: 'The Honest Annual', description: 'A campaign-grade annual report that leads with what failed, what is hardest, and what is unknown. Built to be quoted by journalists, not buried by investor relations.' },
-    { title: 'Live Receipt', description: 'A public, real-time tracker of one metric the brand can be measured on — including bad weeks. Make the brand legible in numbers it cannot edit.' },
+    { title: 'Live Receipt', description: 'A public, real-time tracker of one metric the brand can be measured on, including bad weeks. Make the brand legible in numbers it cannot edit.' },
   ],
   DESIRE: [
     { title: 'Future Self Campaign', description: 'A creative platform that shows the customer who they become by choosing the brand. Identity-forward, not issue-forward.' },
-    { title: 'Cultural Drop', description: 'A collaboration with a non-category cultural partner — artist, designer, label, athlete — that puts the brand inside something people already want, not next to it.' },
+    { title: 'Cultural Drop', description: 'A collaboration with a non-category cultural partner, artist, designer, label, athlete, that puts the brand inside something people already want, not next to it.' },
   ],
   MOMENTUM: [
     { title: 'Earned Stunt', description: 'A single, well-engineered provocation designed to be picked up: an open letter, a public dare, a product hack, a public refusal. One thing built to land in earned, not paid.' },
-    { title: 'POV Channel', description: 'A serialised content channel — podcast, newsletter, video series — with a sharp recurring point of view. Built for cumulative authority, not one-off engagement.' },
+    { title: 'POV Channel', description: 'A serialised content channel, podcast, newsletter, video series, with a sharp recurring point of view. Built for cumulative authority, not one-off engagement.' },
   ],
 };

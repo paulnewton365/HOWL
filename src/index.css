@@ -11,7 +11,7 @@
   --howl-ink:          #0A0A0A;   /* primary text + bold ink */
   --howl-ink-soft:     #2B2B2B;   /* secondary text */
   --howl-mute:         #6B6B6B;   /* tertiary/labels */
-  --howl-coral:        #F47245;   /* accent — the HOWL orange */
+  --howl-coral:        #F47245;   /* accent, the HOWL orange */
   --howl-coral-deep:   #D85726;   /* coral hover/press */
   --howl-bone:         #FAF7EF;   /* near-white surfaces */
   --howl-night:        #000000;   /* full black for inverse blocks */
@@ -39,7 +39,7 @@ html, body, #root {
   min-height: 100vh;
 }
 
-/* Display type — used for HOWL-voice headlines and verdicts.
+/* Display type, used for HOWL-voice headlines and verdicts.
    Anton gives the condensed grotesque weight that matches the deck. */
 .font-display {
   font-family: 'Anton', 'Inter', sans-serif;
@@ -49,7 +49,7 @@ html, body, #root {
   text-transform: uppercase;
 }
 
-/* HOWL voice — bold sentence stamps. */
+/* HOWL voice, bold sentence stamps. */
 .howl-stamp {
   font-family: 'Anton', 'Inter', sans-serif;
   font-weight: 400;
@@ -58,7 +58,7 @@ html, body, #root {
   line-height: 1.0;
 }
 
-/* Sharp button — the HOWL CTA */
+/* Sharp button, the HOWL CTA */
 .btn-howl {
   display: inline-flex;
   align-items: center;
@@ -109,7 +109,7 @@ html, body, #root {
   color: var(--howl-bone);
 }
 
-/* Inputs — flat, bold-bordered */
+/* Inputs, flat, bold-bordered */
 .input-howl {
   width: 100%;
   padding: 0.875rem 1rem;
@@ -130,7 +130,7 @@ html, body, #root {
   color: var(--howl-mute);
 }
 
-/* Card — flat, no radius, ink border */
+/* Card, flat, no radius, ink border */
 .card-howl {
   background: var(--howl-bone);
   border: 1.5px solid var(--howl-ink);
