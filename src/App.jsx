@@ -126,7 +126,6 @@ function IntakeForm({ onSubmit, disabled }) {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [category, setCategory] = useState('tech');
   const [businessModel, setBusinessModel] = useState('b2c');
-  const [socials, setSocials] = useState('');
   const [context, setContext] = useState('');
   const [error, setError] = useState('');
   const [heroError, setHeroError] = useState(false);
@@ -145,7 +144,6 @@ function IntakeForm({ onSubmit, disabled }) {
         websiteUrl: u.toString(),
         category,
         businessModel,
-        socials: socials.trim(),
         context: context.trim(),
       });
     } catch {
@@ -271,20 +269,7 @@ function IntakeForm({ onSubmit, disabled }) {
             className="howl-stamp pt-2"
             style={{ fontSize: '0.9375rem', borderTop: '1px solid var(--howl-cream-deep)', paddingTop: '1.25rem' }}
           >
-            02 — Sharpen the READ <span style={{ fontWeight: 400, fontSize: '0.75rem', textTransform: 'none', letterSpacing: 0, color: 'var(--howl-mute)' }}>(all optional)</span>
-          </div>
-
-          <div>
-            <label className="label-howl" htmlFor="socials">Social handles</label>
-            <input
-              id="socials"
-              type="text"
-              value={socials}
-              onChange={(e) => setSocials(e.target.value)}
-              placeholder="@brand on LinkedIn, IG, X, TikTok — comma-separated or just URLs"
-              className="input-howl"
-              disabled={disabled}
-            />
+            02 — Sharpen the READ <span style={{ fontWeight: 400, fontSize: '0.75rem', textTransform: 'none', letterSpacing: 0, color: 'var(--howl-mute)' }}>(optional)</span>
           </div>
 
           <div>
@@ -295,7 +280,7 @@ function IntakeForm({ onSubmit, disabled }) {
               id="ctx"
               value={context}
               onChange={(e) => setContext(e.target.value)}
-              placeholder="Recent campaigns, links to coverage, Glassdoor/Trustpilot snippets, certifications, anything worth surfacing. Sharper inputs make a sharper READ."
+              placeholder="Recent campaigns, links to coverage, Glassdoor/Trustpilot snippets, certifications, or any social handles you want us to focus on. Sharper inputs make a sharper READ."
               className="input-howl"
               rows={4}
               disabled={disabled}
@@ -333,7 +318,7 @@ function IntakeForm({ onSubmit, disabled }) {
           </button>
 
           <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
-            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It automatically samples how Claude describes the brand to anchor the REPUTATION read. It evaluates messaging signals, not internal performance.
+            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It automatically discovers the brand's social handles and samples how Claude describes the brand. It evaluates messaging signals, not internal performance.
           </p>
         </form>
       </div>
@@ -373,7 +358,11 @@ function RunningRead({ brandName, stage }) {
         className="howl-stamp mb-3"
         style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
       >
-        {stage === 'ai-sample' ? 'Sampling AI representation' : 'Running the READ'}
+        {stage === 'ai-sample'
+          ? 'Sampling AI representation'
+          : stage === 'social'
+          ? 'Finding social presence'
+          : 'Running the READ'}
       </div>
       <h2 className="font-display mb-8" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
         {brandName}
@@ -621,6 +610,14 @@ function ReadReport({ report, onReset, brandMeta }) {
       lines.push('— WHAT CLAUDE SAYS ABOUT YOU (unprompted, no web search) —');
       lines.push(report.ai_description);
     }
+    if (report.social_handles) {
+      lines.push('');
+      lines.push('— SOCIAL PRESENCE WE FOUND —');
+      SOCIAL_PLATFORMS.forEach((k) => {
+        const v = report.social_handles[k];
+        lines.push(`${SOCIAL_LABELS[k]}: ${v || 'not found'}`);
+      });
+    }
     navigator.clipboard.writeText(lines.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -826,39 +823,99 @@ function ReadReport({ report, onReset, brandMeta }) {
         accent="var(--howl-coral)"
       />
 
-      {report.ai_description && (
-        <div className="mb-10">
-          <div
-            className="howl-stamp mb-3"
-            style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
-          >
-            What Claude says about you
-          </div>
-          <div
-            className="card-howl p-6"
-            style={{
-              borderLeftWidth: '4px',
-              borderLeftColor: 'var(--howl-coral)',
-              background: 'var(--howl-bone)',
-            }}
-          >
-            <p
-              className="text-base"
-              style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.6 }}
-            >
-              {report.ai_description}
-            </p>
-            <p
-              className="text-[11px] mt-4 pt-3"
-              style={{
-                color: 'var(--howl-mute)',
-                borderTop: '1px solid var(--howl-cream-deep)',
-                letterSpacing: '0.04em',
-              }}
-            >
-              Sampled from Claude with no web search — this is the brand's footprint in AI training data. If this reads thin, vague, or wrong, that is a REPUTATION finding in its own right.
-            </p>
-          </div>
+      {(report.ai_description || report.social_handles) && (
+        <div className="grid md:grid-cols-2 gap-5 mb-10">
+          {report.ai_description && (
+            <div>
+              <div
+                className="howl-stamp mb-3"
+                style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
+              >
+                What Claude says about you
+              </div>
+              <div
+                className="card-howl p-6 h-full"
+                style={{
+                  borderLeftWidth: '4px',
+                  borderLeftColor: 'var(--howl-coral)',
+                  background: 'var(--howl-bone)',
+                }}
+              >
+                <p
+                  className="text-base"
+                  style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.6 }}
+                >
+                  {report.ai_description}
+                </p>
+                <p
+                  className="text-[11px] mt-4 pt-3"
+                  style={{
+                    color: 'var(--howl-mute)',
+                    borderTop: '1px solid var(--howl-cream-deep)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Sampled from Claude with no web search — this is your footprint in AI training data. If this reads thin, vague, or wrong, that is a REPUTATION finding in its own right.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {report.social_handles && (
+            <div>
+              <div
+                className="howl-stamp mb-3"
+                style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
+              >
+                Social presence we found
+              </div>
+              <div
+                className="card-howl p-6 h-full"
+                style={{
+                  borderLeftWidth: '4px',
+                  borderLeftColor: 'var(--howl-coral)',
+                  background: 'var(--howl-bone)',
+                }}
+              >
+                <ul className="space-y-2">
+                  {SOCIAL_PLATFORMS.map((k) => {
+                    const v = report.social_handles[k];
+                    return (
+                      <li key={k} className="flex items-baseline gap-3 text-sm">
+                        <span
+                          className="howl-stamp shrink-0 w-24"
+                          style={{ fontSize: '0.6875rem', letterSpacing: '0.1em' }}
+                        >
+                          {SOCIAL_LABELS[k]}
+                        </span>
+                        <span
+                          style={{
+                            color: v ? 'var(--howl-ink)' : 'var(--howl-mute)',
+                            fontFamily: v ? 'ui-monospace, monospace' : 'inherit',
+                            fontSize: v ? '0.8125rem' : '0.8125rem',
+                            wordBreak: 'break-all',
+                            fontStyle: v ? 'normal' : 'italic',
+                          }}
+                        >
+                          {v || 'not found'}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p
+                  className="text-[11px] mt-4 pt-3"
+                  style={{
+                    color: 'var(--howl-mute)',
+                    borderTop: '1px solid var(--howl-cream-deep)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Verified via web search at READ time. Platforms gate feed content behind logins, so SOCIAL is scored on discoverable presence and indexed posts — not deep feed analysis.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1039,7 +1096,7 @@ function buildUserPrompt({ brandName, websiteUrl, category, businessModel, socia
     `Category: ${cat}`,
     `Business model: ${bm}`,
   ];
-  if (socials) lines.push(`Social handles: ${socials}`);
+  if (socials) lines.push(`\nAuto-discovered social handles (verified via web search at READ time — focus the SOCIAL surface evaluation on these):\n${socials}`);
   if (aiSummary) lines.push(`\nUnprompted AI representation (Claude's description of the brand from training data, captured at READ time without web search):\n${aiSummary}`);
   if (context) lines.push(`\nAdditional context the user provided:\n${context}`);
   lines.push(
@@ -1149,6 +1206,84 @@ If you do not have reliable information about this brand, say so explicitly — 
 }
 
 // ============================================================================
+// SOCIAL HANDLE DISCOVERY
+// Quick web-search Claude call to find the brand's verified social accounts.
+// Caveat: even with handles in hand, deep feed content is gated by platform
+// login walls. The SOCIAL surface scores discoverable presence + indexed posts
+// + third-party reports, not full feed analysis.
+// ============================================================================
+
+const SOCIAL_PLATFORMS = ['linkedin', 'instagram', 'x', 'tiktok', 'youtube', 'facebook'];
+const SOCIAL_LABELS = {
+  linkedin: 'LinkedIn',
+  instagram: 'Instagram',
+  x: 'X / Twitter',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+};
+
+async function fetchSocialHandles(brandName, websiteUrl) {
+  const prompt = `Find the official social media accounts for the brand "${brandName}" (${websiteUrl}). Use web_search to confirm verified or clearly official accounts on each platform. Prefer accounts linked from the brand's own website footer or About page.
+
+Return ONLY a JSON object in this exact shape. Use a handle ("@example") or full URL for each platform you can verify. Use null where you cannot find a clearly official account. Do not guess. Do not invent handles.
+
+{
+  "linkedin": "https://www.linkedin.com/company/example" or null,
+  "instagram": "@example" or null,
+  "x": "@example" or null,
+  "tiktok": "@example" or null,
+  "youtube": "Channel name or URL" or null,
+  "facebook": "URL or page name" or null
+}
+
+Return only the JSON. No prose, no code fences.`;
+
+  try {
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        temperature: 0,
+        useWebSearch: true,
+        webSearchMaxUses: 3,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text =
+      data.text ||
+      (data.content || [])
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('\n');
+    const parsed = extractJson(text);
+    // Normalize to a flat object with only the known keys
+    const out = {};
+    SOCIAL_PLATFORMS.forEach((k) => {
+      const v = parsed?.[k];
+      out[k] = typeof v === 'string' && v.trim() ? v.trim() : null;
+    });
+    // If everything came back null, treat as no result
+    if (SOCIAL_PLATFORMS.every((k) => !out[k])) return null;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+function formatSocialsForPrompt(handles) {
+  if (!handles) return '';
+  const lines = SOCIAL_PLATFORMS
+    .filter((k) => handles[k])
+    .map((k) => `${SOCIAL_LABELS[k]}: ${handles[k]}`);
+  return lines.length ? lines.join('\n') : '';
+}
+
+// ============================================================================
 // APP
 // ============================================================================
 
@@ -1156,7 +1291,7 @@ const STORAGE_KEY = 'howl-read:last';
 
 export default function App() {
   const [view, setView] = useState('intake');
-  const [stage, setStage] = useState(null); // 'ai-sample' | 'main' | null
+  const [stage, setStage] = useState(null); // 'ai-sample' | 'social' | 'main' | null
   const [brandMeta, setBrandMeta] = useState(null);
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
@@ -1180,16 +1315,26 @@ export default function App() {
     setError('');
     setSubmitting(true);
     setBrandMeta(meta);
-    setStage('ai-sample');
     setView('running');
 
     try {
-      // Step 1 — unprompted Claude call. Captures training-data view.
+      // Step 1 — unprompted AI description (no web search)
+      setStage('ai-sample');
       const aiDescription = await fetchAiDescription(meta.brandName, meta.websiteUrl);
-      const enrichedMeta = { ...meta, aiSummary: aiDescription };
 
-      // Step 2 — main READ with web search, including the AI description as context.
+      // Step 2 — social handle discovery (web search, narrow budget)
+      setStage('social');
+      const socialHandles = await fetchSocialHandles(meta.brandName, meta.websiteUrl);
+      const socialsStr = formatSocialsForPrompt(socialHandles);
+
+      // Step 3 — main READ with everything injected
       setStage('main');
+      const enrichedMeta = {
+        ...meta,
+        aiSummary: aiDescription,
+        socials: socialsStr,
+      };
+
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1219,8 +1364,8 @@ export default function App() {
 
       const raw = extractJson(text);
       const normalized = normalizeReport(raw);
-      // Preserve the sampled AI description on the report so it shows in evidence/exports.
       normalized.ai_description = aiDescription;
+      normalized.social_handles = socialHandles;
 
       setReport(normalized);
       try {

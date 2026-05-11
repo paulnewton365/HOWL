@@ -10,13 +10,16 @@ The thesis is HOWL's: brands have been shouting at the same volume, frequency, a
 
 ## What it does
 
-1. The user submits a brand name, website URL, category, business model, and optional context (social handles, additional notes).
-2. The app fires a quick unprompted Claude call (no web search) to capture how Claude describes the brand from training data alone. This anchors the REPUTATION read.
-3. Claude (with web_search) then reads the brand across four evidence surfaces — homepage and owned pages, social feeds, third-party reputation surfaces (AI engines, reviews, Glassdoor, Reddit, certifications), and earned media from the last 12 months. The unprompted AI description from step 2 is passed in as context.
-4. Each of the six signals gets a score on each of the four surfaces. Signal scores are the mean of the four surface scores. Overall = mean of signal scores.
-5. The report renders a radial stacked-bar chart, per-signal cards with surface breakdowns and evidence, brand-specific EDGE and PLAY recommendations, and a callout showing what Claude said about the brand unprompted.
+1. The user submits a brand name, website URL, category, business model, and optional context.
+2. The app fires a quick unprompted Claude call (no web search) to capture how Claude describes the brand from training data alone. Anchors the REPUTATION read.
+3. A second quick Claude call (web search, narrow budget) discovers the brand's official social handles across LinkedIn, Instagram, X, TikTok, YouTube, Facebook. Anchors the SOCIAL read.
+4. The main READ call (web search, full budget) reads the brand across four evidence surfaces — website, social, third-party reputation surfaces (AI engines, reviews, Glassdoor, Reddit, certifications), and earned media from the last 12 months. The AI description and social handles from steps 2 and 3 are passed in as anchors.
+5. Each of the six signals gets a score on each of the four surfaces. Signal scores are the mean of the four surface scores. Overall = mean of signal scores.
+6. The report renders a radial stacked-bar chart, per-signal cards with surface breakdowns and evidence, brand-specific EDGE and PLAY recommendations, the captured AI description, and the discovered social handles.
 
-Two Claude calls per READ: one small unprompted call (~$0.005), one main READ with web search (~$0.10). Last READ is cached in `localStorage` so the user can come back to it without re-running.
+Three Claude calls per READ: one unprompted (~$0.005), one social discovery with narrow web search (~$0.03), one main READ with web search (~$0.10). Last READ is cached in `localStorage` so the user can come back to it without re-running.
+
+**Honest limitation on SOCIAL:** Even with handles discovered, platforms (LinkedIn, Instagram, TikTok) gate feed content behind login walls. The SOCIAL surface evaluates *discoverable presence + Google-indexed posts + third-party reports*, not deep feed analysis. This is the weakest of the four surfaces for any AI-driven brand diagnostic — true of HOWL READ and true of every other tool in the category.
 
 ---
 
