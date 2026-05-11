@@ -27,6 +27,7 @@ import {
   fetchReadById,
   deleteRead,
   supabaseEnabled,
+  supabaseDebug,
 } from './lib/supabase';
 import {
   ArrowRight,
@@ -228,6 +229,7 @@ function VerdictStamp({ score, size = 'sm' }) {
 function PreviousReads({ onLoad, onRerun }) {
   const [reads, setReads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
@@ -235,15 +237,19 @@ function PreviousReads({ onLoad, onRerun }) {
       setLoading(false);
       return;
     }
-    fetchRecentReads().then((data) => {
-      setReads(data);
+    fetchRecentReads().then((result) => {
+      if (!result.ok) {
+        setError({ reason: result.reason, message: result.message });
+      } else {
+        setReads(result.data);
+      }
       setLoading(false);
     });
   }, []);
 
+  // If Supabase isn't configured at all, render nothing. The Previous Reads
+  // feature is optional, so don't nag users who never set it up.
   if (!supabaseEnabled) return null;
-  if (loading) return null;
-  if (!reads.length) return null;
 
   async function handleDelete(id) {
     setBusyId(id);
@@ -264,79 +270,139 @@ function PreviousReads({ onLoad, onRerun }) {
         </h2>
       </div>
 
-      <div className="space-y-2">
-        {reads.map((r) => {
-          const date = new Date(r.created_at);
-          const dateStr = date.toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          });
-          return (
-            <div
-              key={r.id}
-              className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
-              style={{ cursor: 'pointer' }}
-              onClick={() => onLoad(r)}
-            >
-              <div className="flex-1 min-w-0">
-                <div
-                  className="font-display truncate"
-                  style={{ fontSize: '1.0625rem', lineHeight: 1.1 }}
-                >
-                  {r.brand_name}
-                </div>
-                <div
-                  className="text-[11px] tracking-wide uppercase mt-1"
-                  style={{ color: 'var(--howl-mute)' }}
-                >
-                  {dateStr}
-                </div>
-              </div>
-              <div
-                className="font-display tabular-nums shrink-0"
-                style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
-              >
-                {r.overall_score}
-              </div>
-              <div className="shrink-0">
-                <VerdictStamp score={r.overall_score} />
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRerun(r);
-                }}
-                className="btn-ghost shrink-0"
-                title="Run this READ again"
-                style={{ padding: '6px 10px' }}
-              >
-                <RefreshCw size={14} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(r.id);
-                }}
-                disabled={busyId === r.id}
-                title="Delete"
-                className="shrink-0"
-                style={{
-                  padding: '6px 8px',
-                  color: 'var(--howl-mute)',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
+      {loading && (
+        <div
+          className="card-howl p-5 flex items-center gap-3"
+          style={{ color: 'var(--howl-mute)' }}
+        >
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-sm">Loading your history.</span>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div
+          className="card-howl p-5"
+          style={{ borderColor: 'var(--howl-weak)', background: 'rgba(183, 53, 37, 0.04)' }}
+        >
+          <div className="flex items-start gap-2 mb-2">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: 'var(--howl-weak)' }} />
+            <div className="howl-stamp" style={{ fontSize: '0.875rem', color: 'var(--howl-weak)' }}>
+              Could not load history
             </div>
-          );
-        })}
-      </div>
+          </div>
+          <p className="text-sm mb-3" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}>
+            {supabaseConnectionHelp(error.reason)}
+          </p>
+          {error.message && (
+            <p className="text-xs font-mono" style={{ color: 'var(--howl-mute)' }}>
+              {error.message}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && reads.length === 0 && (
+        <div className="card-howl p-5" style={{ background: 'var(--howl-bone)' }}>
+          <p className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>
+            No reads recorded yet. Run your first one above and it will appear here.
+          </p>
+          <p className="text-[11px] mt-2" style={{ color: 'var(--howl-mute)' }}>
+            Connected to <span className="font-mono">{supabaseDebug.urlPreview}</span>
+          </p>
+        </div>
+      )}
+
+      {!loading && !error && reads.length > 0 && (
+        <div className="space-y-2">
+          {reads.map((r) => {
+            const date = new Date(r.created_at);
+            const dateStr = date.toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            });
+            return (
+              <div
+                key={r.id}
+                className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
+                style={{ cursor: 'pointer' }}
+                onClick={() => onLoad(r)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="font-display truncate"
+                    style={{ fontSize: '1.0625rem', lineHeight: 1.1 }}
+                  >
+                    {r.brand_name}
+                  </div>
+                  <div
+                    className="text-[11px] tracking-wide uppercase mt-1"
+                    style={{ color: 'var(--howl-mute)' }}
+                  >
+                    {dateStr}
+                  </div>
+                </div>
+                <div
+                  className="font-display tabular-nums shrink-0"
+                  style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
+                >
+                  {r.overall_score}
+                </div>
+                <div className="shrink-0">
+                  <VerdictStamp score={r.overall_score} />
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRerun(r);
+                  }}
+                  className="btn-ghost shrink-0"
+                  title="Run this READ again"
+                  style={{ padding: '6px 10px' }}
+                >
+                  <RefreshCw size={14} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(r.id);
+                  }}
+                  disabled={busyId === r.id}
+                  title="Delete"
+                  className="shrink-0"
+                  style={{
+                    padding: '6px 8px',
+                    color: 'var(--howl-mute)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
+}
+
+function supabaseConnectionHelp(reason) {
+  switch (reason) {
+    case 'table-missing':
+      return 'Supabase is reachable but the "reads" table does not exist. Run the SQL from supabase-schema.sql in your Supabase SQL Editor.';
+    case 'rls-blocked':
+      return 'Supabase blocked the request. The Row Level Security policies on the "reads" table need to permit anon read, insert, and delete. Re-run supabase-schema.sql.';
+    case 'bad-credentials':
+      return 'Supabase rejected the credentials. Check that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set correctly on Vercel, then redeploy.';
+    case 'network':
+      return 'Could not reach Supabase. Check the Project URL is correct (no trailing slash) and the project is not paused.';
+    default:
+      return 'Something went wrong talking to Supabase. Check the browser console for details.';
+  }
 }
 
 function Header({ onReset, showReset, onSignOut }) {
@@ -477,7 +543,7 @@ function IntakeForm({ onSubmit, disabled }) {
         {/* Right: the form */}
         <form onSubmit={handleSubmit} className="lg:col-span-3 card-howl p-7 space-y-6">
           <div className="howl-stamp" style={{ fontSize: '0.9375rem' }}>
-            01. Tell us the brand
+            01. Pick A Read
           </div>
 
           <div>
@@ -863,7 +929,7 @@ function SurfaceLegend() {
 // REPORT
 // ============================================================================
 
-function ReadReport({ report, onReset, brandMeta }) {
+function ReadReport({ report, onReset, brandMeta, saveStatus }) {
   const overall = report.overall_score;
   const verdict = getVerdict(overall);
   const [copied, setCopied] = useState(false);
@@ -1232,6 +1298,55 @@ function ReadReport({ report, onReset, brandMeta }) {
                 >
                   Verified via web search at READ time. Platforms gate feed content behind logins, so SOCIAL is scored on discoverable presence and indexed posts, not deep feed analysis.
                 </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {saveStatus && (
+        <div className="flex justify-center pt-4">
+          {saveStatus === 'saving' && (
+            <div
+              className="flex items-center gap-2 text-xs"
+              style={{ color: 'var(--howl-mute)' }}
+            >
+              <Loader2 size={12} className="animate-spin" />
+              <span>Saving to history.</span>
+            </div>
+          )}
+          {saveStatus === 'saved' && (
+            <div
+              className="flex items-center gap-2 text-xs"
+              style={{ color: 'var(--howl-strong)' }}
+            >
+              <Check size={12} />
+              <span>Saved to history.</span>
+            </div>
+          )}
+          {typeof saveStatus === 'object' && saveStatus?.error && (
+            <div
+              className="card-howl p-3 max-w-xl"
+              style={{ borderColor: 'var(--howl-weak)', background: 'rgba(183, 53, 37, 0.04)' }}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--howl-weak)' }} />
+                <div>
+                  <div
+                    className="howl-stamp"
+                    style={{ fontSize: '0.6875rem', color: 'var(--howl-weak)', letterSpacing: '0.1em' }}
+                  >
+                    Save failed
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.45 }}>
+                    {saveStatus.error}
+                  </p>
+                  {saveStatus.detail && (
+                    <p className="text-[11px] font-mono mt-1" style={{ color: 'var(--howl-mute)' }}>
+                      {saveStatus.detail}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1897,11 +2012,12 @@ const STORAGE_KEY = 'howl-read:last';
 
 export default function App() {
   const [view, setView] = useState('intake');
-  const [stage, setStage] = useState(null); // 'ai-sample' | 'social' | 'main' | null
+  const [stage, setStage] = useState(null);
   const [brandMeta, setBrandMeta] = useState(null);
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | { error: string }
 
   useEffect(() => {
     try {
@@ -1991,7 +2107,25 @@ export default function App() {
       } catch { /* ignore */ }
 
       // Persist to Supabase in the background. Don't block the report on it.
-      saveRead(meta, normalized).catch((e) => console.error('saveRead failed:', e));
+      if (supabaseEnabled) {
+        setSaveStatus('saving');
+        saveRead(meta, normalized)
+          .then((result) => {
+            if (result.ok) {
+              setSaveStatus('saved');
+            } else {
+              setSaveStatus({
+                error: supabaseConnectionHelp(result.reason),
+                detail: result.message,
+              });
+            }
+          })
+          .catch((e) => {
+            setSaveStatus({ error: 'Save failed.', detail: e.message });
+          });
+      } else {
+        setSaveStatus(null);
+      }
 
       setView('report');
     } catch (e) {
@@ -2008,6 +2142,7 @@ export default function App() {
     setReport(null);
     setBrandMeta(null);
     setError('');
+    setSaveStatus(null);
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     setView('intake');
   }
@@ -2058,7 +2193,12 @@ export default function App() {
         <RunningRead brandName={brandMeta?.brandName || ''} stage={stage} />
       )}
       {view === 'report' && report && brandMeta && (
-        <ReadReport report={report} onReset={reset} brandMeta={brandMeta} />
+        <ReadReport
+          report={report}
+          onReset={reset}
+          brandMeta={brandMeta}
+          saveStatus={saveStatus}
+        />
       )}
       {view === 'error' && <ErrorScreen error={error} onBack={reset} />}
       <BuildBadge />
