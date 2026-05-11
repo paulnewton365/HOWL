@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   SIGNALS,
-  IMPACT_CATEGORIES,
+  CATEGORIES,
+  BUSINESS_MODELS,
+  SURFACES,
+  SURFACE_IDS,
   VERDICT_TIERS,
   getVerdict,
-  EDGE_PLAYBOOK,
-  PLAY_PLAYBOOK,
   FRAMEWORK_VERSION,
 } from './data/rubric';
 import {
@@ -23,23 +24,20 @@ import {
 } from 'lucide-react';
 
 // ============================================================================
-// HOWL LOGO — a typographic stamp. No external SVG required.
+// HOWL LOGO — uses /howl-logo.svg from public/. Replace that file with your
+// official logo for a pixel-perfect mark.
 // ============================================================================
 
-function HowlMark({ className = '' }) {
+function HowlLogo({ height = 38, inverted = false }) {
+  // The SVG file in /public is ink on transparent. Inverting via CSS filter
+  // is the simplest way to render light-on-dark in inverted contexts.
+  const style = inverted ? { filter: 'invert(1)' } : {};
   return (
-    <span
-      className={`howl-stamp inline-flex items-center ${className}`}
-      style={{
-        background: 'var(--howl-ink)',
-        color: 'var(--howl-bone)',
-        padding: '0.35rem 0.7rem',
-        fontSize: '1.5rem',
-        letterSpacing: '0.02em',
-      }}
-    >
-      HOWL
-    </span>
+    <img
+      src="/howl-logo.svg"
+      alt="HOWL"
+      style={{ height: `${height}px`, display: 'block', ...style }}
+    />
   );
 }
 
@@ -55,21 +53,21 @@ function Header({ onReset, showReset }) {
         background: 'var(--howl-cream)',
       }}
     >
-      <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <HowlMark />
-          <div className="hidden sm:block">
-            <div
-              className="howl-stamp"
-              style={{ fontSize: '1.5rem', lineHeight: 1 }}
-            >
+      <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <HowlLogo height={32} />
+          <div
+            className="hidden sm:block pl-4"
+            style={{ borderLeft: '1.5px solid var(--howl-ink)' }}
+          >
+            <div className="howl-stamp" style={{ fontSize: '1.25rem', lineHeight: 1 }}>
               READ
             </div>
             <div
               className="text-[10px] tracking-[0.15em] uppercase"
               style={{ color: 'var(--howl-mute)' }}
             >
-              A diagnostic for impact brands
+              The brand diagnostic
             </div>
           </div>
         </div>
@@ -85,15 +83,20 @@ function Header({ onReset, showReset }) {
 }
 
 // ============================================================================
-// INTAKE — the form that collects what we need to run the READ
+// INTAKE — expanded form: brand, URL, category, business model, social,
+// AI engine descriptions, additional context.
 // ============================================================================
 
 function IntakeForm({ onSubmit, disabled }) {
   const [brandName, setBrandName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
-  const [category, setCategory] = useState('circular');
+  const [category, setCategory] = useState('tech');
+  const [businessModel, setBusinessModel] = useState('b2c');
+  const [socials, setSocials] = useState('');
+  const [aiSummary, setAiSummary] = useState('');
   const [context, setContext] = useState('');
   const [error, setError] = useState('');
+  const [heroError, setHeroError] = useState(false);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -108,6 +111,9 @@ function IntakeForm({ onSubmit, disabled }) {
         brandName: brandName.trim(),
         websiteUrl: u.toString(),
         category,
+        businessModel,
+        socials: socials.trim(),
+        aiSummary: aiSummary.trim(),
         context: context.trim(),
       });
     } catch {
@@ -116,130 +122,211 @@ function IntakeForm({ onSubmit, disabled }) {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 howl-fadein">
-      {/* Hero block — HOWL voice */}
-      <div className="mb-10">
-        <div
-          className="howl-stamp mb-3"
-          style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
-        >
-          The READ — v{FRAMEWORK_VERSION}
-        </div>
-        <h1
-          className="font-display mb-5"
-          style={{ fontSize: 'clamp(2.5rem, 6vw, 4.5rem)' }}
-        >
-          Stop whispering.<br />
-          <span style={{ color: 'var(--howl-coral)' }}>Find out where.</span>
-        </h1>
-        <p
-          className="text-lg max-w-2xl"
-          style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}
-        >
-          A diagnostic from HOWL that reads how loudly — and how convincingly —
-          your brand is carrying its impact story. Six signals. One verdict.
-          Recommendations for EDGE and PLAY.
-        </p>
-      </div>
-
-      {/* The form */}
-      <form onSubmit={handleSubmit} className="card-howl p-7 space-y-6">
-        <div>
-          <label className="label-howl" htmlFor="brand">Brand</label>
-          <input
-            id="brand"
-            type="text"
-            value={brandName}
-            onChange={(e) => setBrandName(e.target.value)}
-            placeholder="Patagonia, Allbirds, Beyond Meat…"
-            className="input-howl"
-            disabled={disabled}
-          />
-        </div>
-
-        <div>
-          <label className="label-howl" htmlFor="url">Website</label>
-          <input
-            id="url"
-            type="text"
-            value={websiteUrl}
-            onChange={(e) => setWebsiteUrl(e.target.value)}
-            placeholder="https://"
-            className="input-howl"
-            disabled={disabled}
-          />
-        </div>
-
-        <div>
-          <label className="label-howl" htmlFor="cat">Impact category</label>
-          <select
-            id="cat"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="input-howl"
-            disabled={disabled}
-          >
-            {IMPACT_CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="label-howl" htmlFor="ctx">
-            Anything we should know <span style={{ color: 'var(--howl-mute)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-          </label>
-          <textarea
-            id="ctx"
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            placeholder="Paste copy from the sustainability page, a recent campaign description, links to coverage, or anything else worth surfacing. The more sharp inputs, the sharper the READ."
-            className="input-howl"
-            rows={5}
-            disabled={disabled}
-            style={{ resize: 'vertical', fontFamily: 'inherit' }}
-          />
-        </div>
-
-        {error && (
-          <div
-            className="flex items-start gap-2 p-3"
-            style={{
-              border: '1.5px solid var(--howl-weak)',
-              background: 'rgba(183, 53, 37, 0.08)',
-              color: 'var(--howl-weak)',
-            }}
-          >
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-            <span className="text-sm">{error}</span>
+    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+      <div className="grid lg:grid-cols-5 gap-8 items-start">
+        {/* Left: hero image + headline */}
+        <div className="lg:col-span-2 lg:sticky lg:top-8">
+          <div className="mb-5">
+            <div
+              className="howl-stamp mb-3"
+              style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
+            >
+              The READ — v{FRAMEWORK_VERSION}
+            </div>
+            <h1
+              className="font-display"
+              style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)' }}
+            >
+              Stop whispering.<br />
+              <span style={{ color: 'var(--howl-coral)' }}>Find out where.</span>
+            </h1>
           </div>
-        )}
 
-        <button type="submit" disabled={disabled} className="btn-howl w-full justify-center">
-          {disabled ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Running the READ…
-            </>
-          ) : (
-            <>
-              <Megaphone size={16} />
-              Run the READ
-              <ArrowRight size={16} />
-            </>
+          <div
+            className="card-howl overflow-hidden"
+            style={{ aspectRatio: '4 / 5', borderColor: 'var(--howl-ink)' }}
+          >
+            {!heroError ? (
+              <img
+                src="/howl-hero.jpg"
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                onError={() => setHeroError(true)}
+              />
+            ) : (
+              <img
+                src="/howl-hero.svg"
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            )}
+          </div>
+
+          <p
+            className="text-base mt-5"
+            style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}
+          >
+            A diagnostic from HOWL that reads how loudly — and how convincingly —
+            your brand is carrying its story across <strong>website, social,
+            reputation, and earned</strong>. Six signals. Four surfaces. One verdict.
+          </p>
+        </div>
+
+        {/* Right: the form */}
+        <form onSubmit={handleSubmit} className="lg:col-span-3 card-howl p-7 space-y-6">
+          <div className="howl-stamp" style={{ fontSize: '0.9375rem' }}>
+            01 — Tell us the brand
+          </div>
+
+          <div>
+            <label className="label-howl" htmlFor="brand">Brand</label>
+            <input
+              id="brand"
+              type="text"
+              value={brandName}
+              onChange={(e) => setBrandName(e.target.value)}
+              placeholder="Patagonia, Liquid Death, Notion, Glossier…"
+              className="input-howl"
+              disabled={disabled}
+            />
+          </div>
+
+          <div>
+            <label className="label-howl" htmlFor="url">Website</label>
+            <input
+              id="url"
+              type="text"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://"
+              className="input-howl"
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="label-howl" htmlFor="cat">Category</label>
+              <select
+                id="cat"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="input-howl"
+                disabled={disabled}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label-howl" htmlFor="bm">Business model</label>
+              <select
+                id="bm"
+                value={businessModel}
+                onChange={(e) => setBusinessModel(e.target.value)}
+                className="input-howl"
+                disabled={disabled}
+              >
+                {BUSINESS_MODELS.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div
+            className="howl-stamp pt-2"
+            style={{ fontSize: '0.9375rem', borderTop: '1px solid var(--howl-cream-deep)', paddingTop: '1.25rem' }}
+          >
+            02 — Sharpen the READ <span style={{ fontWeight: 400, fontSize: '0.75rem', textTransform: 'none', letterSpacing: 0, color: 'var(--howl-mute)' }}>(all optional)</span>
+          </div>
+
+          <div>
+            <label className="label-howl" htmlFor="socials">Social handles</label>
+            <input
+              id="socials"
+              type="text"
+              value={socials}
+              onChange={(e) => setSocials(e.target.value)}
+              placeholder="@brand on LinkedIn, IG, X, TikTok — comma-separated or just URLs"
+              className="input-howl"
+              disabled={disabled}
+            />
+          </div>
+
+          <div>
+            <label className="label-howl" htmlFor="ai">
+              How AI engines describe the brand
+            </label>
+            <textarea
+              id="ai"
+              value={aiSummary}
+              onChange={(e) => setAiSummary(e.target.value)}
+              placeholder='Paste what Claude, ChatGPT, Gemini, or Perplexity say when asked "What is [BRAND]?" — this anchors the REPUTATION read.'
+              className="input-howl"
+              rows={3}
+              disabled={disabled}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
+
+          <div>
+            <label className="label-howl" htmlFor="ctx">
+              Anything else we should know
+            </label>
+            <textarea
+              id="ctx"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              placeholder="Recent campaigns, links to coverage, Glassdoor/Trustpilot snippets, certifications, anything worth surfacing. Sharper inputs make a sharper READ."
+              className="input-howl"
+              rows={4}
+              disabled={disabled}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
+
+          {error && (
+            <div
+              className="flex items-start gap-2 p-3"
+              style={{
+                border: '1.5px solid var(--howl-weak)',
+                background: 'rgba(183, 53, 37, 0.08)',
+                color: 'var(--howl-weak)',
+              }}
+            >
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span className="text-sm">{error}</span>
+            </div>
           )}
-        </button>
 
-        <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
-          The READ uses public information. It surfaces messaging signals, not internal performance.
-        </p>
-      </form>
+          <button type="submit" disabled={disabled} className="btn-howl w-full justify-center">
+            {disabled ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Running the READ…
+              </>
+            ) : (
+              <>
+                <Megaphone size={16} />
+                Run the READ
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+
+          <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
+            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It evaluates messaging signals, not internal performance.
+          </p>
+        </form>
+      </div>
     </main>
   );
 }
 
 // ============================================================================
-// RUNNING — loading state with rotating HOWL-voice progress lines
+// RUNNING — loading state
 // ============================================================================
 
 function RunningRead({ brandName }) {
@@ -247,18 +334,19 @@ function RunningRead({ brandName }) {
     () => [
       'Reading the homepage.',
       'Listening for category cliché.',
-      'Checking whether sustainability sits inside the brand or beside it.',
-      'Counting scars in the latest report.',
+      'Scanning the social feeds.',
+      'Asking what the AI engines say.',
+      'Checking earned media of the last twelve months.',
+      'Counting scars in the latest claims.',
       'Watching for guilt vs. invitation in the copy.',
-      'Looking for earned attention, not just paid push.',
-      'Scoring the six signals.',
+      'Scoring the four surfaces.',
       'Writing the verdict.',
     ],
     []
   );
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx((i) => (i + 1) % lines.length), 1800);
+    const t = setInterval(() => setIdx((i) => (i + 1) % lines.length), 2000);
     return () => clearInterval(t);
   }, [lines.length]);
 
@@ -270,10 +358,7 @@ function RunningRead({ brandName }) {
       >
         Running the READ
       </div>
-      <h2
-        className="font-display mb-8"
-        style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}
-      >
+      <h2 className="font-display mb-8" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
         {brandName}
       </h2>
       <div className="flex items-center justify-center gap-3 mb-3">
@@ -287,139 +372,137 @@ function RunningRead({ brandName }) {
         </span>
       </div>
       <p className="text-xs mt-10" style={{ color: 'var(--howl-mute)' }}>
-        This usually takes 30–60 seconds. Claude is reading the brand's actual surfaces.
+        This usually takes 30–90 seconds. Claude is reading the brand's actual surfaces.
       </p>
     </main>
   );
 }
 
 // ============================================================================
-// HEXAGON RADAR — six signals, no chart library
+// RADIAL STACKED BAR CHART
+// 6 signal wedges. Each wedge stacks 4 surface scores radially from center.
+// Outer edge = sum of all surface scores. Inner band labels follow segment angle.
 // ============================================================================
 
-function HexagonRadar({ signals, size = 440 }) {
+function RadialStackedBars({ signals, size = 520 }) {
   const cx = size / 2;
   const cy = size / 2;
-  const maxR = size * 0.34;
-  const labelR = size * 0.44;
+  const innerR = size * 0.10;
+  const outerR = size * 0.40;
+  const labelR = size * 0.46;
+  const segAngle = 360 / SIGNALS.length;       // 60° per signal
+  const gapDeg = 6;                            // visual gap between wedges
+  const arcDeg = segAngle - gapDeg;
+  const maxStack = 400;                        // 4 surfaces × 100 each
 
-  // Top is VOLUME, going clockwise. Start angle = -90° (top).
-  const points = SIGNALS.map((sig, i) => {
-    const angle = (-90 + (360 / 6) * i) * (Math.PI / 180);
-    return {
-      id: sig.id,
-      name: sig.name,
-      angle,
-      score: signals[sig.id]?.score ?? 0,
-    };
-  });
-
-  function pointAt(angle, r) {
-    return [cx + Math.cos(angle) * r, cy + Math.sin(angle) * r];
+  function polar(angleDeg, r) {
+    const a = (angleDeg - 90) * (Math.PI / 180);
+    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
   }
 
-  // Background concentric hexagons (25/50/75/100)
-  const rings = [0.25, 0.5, 0.75, 1].map((scale) => {
-    const ringPts = points
-      .map((p) => pointAt(p.angle, maxR * scale).join(','))
-      .join(' ');
-    return { scale, ringPts };
-  });
+  // Arc path between two angles at given inner/outer radius (an annular sector)
+  function annularSectorPath(startDeg, endDeg, rIn, rOut) {
+    const [x1, y1] = polar(startDeg, rOut);
+    const [x2, y2] = polar(endDeg, rOut);
+    const [x3, y3] = polar(endDeg, rIn);
+    const [x4, y4] = polar(startDeg, rIn);
+    const largeArc = endDeg - startDeg > 180 ? 1 : 0;
+    return [
+      `M ${x1} ${y1}`,
+      `A ${rOut} ${rOut} 0 ${largeArc} 1 ${x2} ${y2}`,
+      `L ${x3} ${y3}`,
+      `A ${rIn} ${rIn} 0 ${largeArc} 0 ${x4} ${y4}`,
+      'Z',
+    ].join(' ');
+  }
 
-  // Score polygon
-  const scorePts = points
-    .map((p) => pointAt(p.angle, maxR * (p.score / 100)).join(','))
-    .join(' ');
+  // Background reference rings (25/50/75/100 of max stack)
+  const rings = [0.25, 0.5, 0.75, 1.0].map((p) => ({
+    r: innerR + (outerR - innerR) * p,
+    pct: Math.round(p * 100),
+  }));
 
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
       width="100%"
       style={{ maxWidth: size, height: 'auto', display: 'block', margin: '0 auto' }}
-      aria-label="Hexagon radar of the six HOWL signals"
+      aria-label="Radial stacked bar chart of HOWL READ scores"
     >
-      {/* Rings */}
-      {rings.map(({ scale, ringPts }) => (
-        <polygon
-          key={scale}
-          points={ringPts}
+      {/* Reference rings */}
+      {rings.map((ring, i) => (
+        <circle
+          key={ring.r}
+          cx={cx}
+          cy={cy}
+          r={ring.r}
           fill="none"
           stroke="var(--howl-ink)"
-          strokeOpacity={scale === 1 ? 0.8 : 0.18}
-          strokeWidth={scale === 1 ? 1.5 : 1}
+          strokeOpacity={i === rings.length - 1 ? 0.4 : 0.12}
+          strokeWidth={1}
+          strokeDasharray={i === rings.length - 1 ? '0' : '3 4'}
         />
       ))}
 
-      {/* Axes */}
-      {points.map((p) => {
-        const [x, y] = pointAt(p.angle, maxR);
-        return (
-          <line
-            key={p.id}
-            x1={cx}
-            y1={cy}
-            x2={x}
-            y2={y}
-            stroke="var(--howl-ink)"
-            strokeOpacity={0.18}
-            strokeWidth={1}
-          />
-        );
-      })}
+      {/* Inner cream hole */}
+      <circle cx={cx} cy={cy} r={innerR} fill="var(--howl-cream)" stroke="var(--howl-ink)" strokeOpacity={0.4} />
 
-      {/* Score polygon */}
-      <polygon
-        points={scorePts}
-        fill="var(--howl-coral)"
-        fillOpacity={0.42}
-        stroke="var(--howl-coral-deep)"
-        strokeWidth={2}
-      />
+      {/* Signal wedges with stacked surface bars */}
+      {SIGNALS.map((sig, i) => {
+        const startAngle = i * segAngle + gapDeg / 2;
+        const endAngle = startAngle + arcDeg;
+        const midAngle = (startAngle + endAngle) / 2;
+        const sigData = signals[sig.id];
+        if (!sigData) return null;
 
-      {/* Score dots */}
-      {points.map((p) => {
-        const [x, y] = pointAt(p.angle, maxR * (p.score / 100));
-        return (
-          <circle
-            key={p.id}
-            cx={x}
-            cy={y}
-            r={4.5}
-            fill="var(--howl-ink)"
-          />
-        );
-      })}
+        // Each surface adds (score / maxStack) of the available radial range
+        let cursorR = innerR;
+        const stacks = SURFACES.map((surface) => {
+          const score = sigData.by_surface?.[surface.id] ?? 0;
+          const span = (score / maxStack) * (outerR - innerR);
+          const from = cursorR;
+          const to = cursorR + span;
+          cursorR = to;
+          return { surface, from, to, score };
+        });
 
-      {/* Labels */}
-      {points.map((p) => {
-        const [x, y] = pointAt(p.angle, labelR);
-        const anchor =
-          Math.abs(Math.cos(p.angle)) < 0.2
-            ? 'middle'
-            : Math.cos(p.angle) > 0
-            ? 'start'
-            : 'end';
+        // Label position
+        const [lx, ly] = polar(midAngle, labelR);
+
         return (
-          <g key={p.id}>
+          <g key={sig.id}>
+            {stacks.map(({ surface, from, to }) =>
+              to > from ? (
+                <path
+                  key={surface.id}
+                  d={annularSectorPath(startAngle, endAngle, from, to)}
+                  fill={surface.color}
+                  stroke="var(--howl-cream)"
+                  strokeWidth={1.5}
+                />
+              ) : null
+            )}
+
+            {/* Signal label */}
             <text
-              x={x}
-              y={y}
-              textAnchor={anchor}
+              x={lx}
+              y={ly}
+              textAnchor="middle"
               dominantBaseline="middle"
               style={{
                 fontFamily: 'Anton, Inter, sans-serif',
-                fontSize: '15px',
+                fontSize: '16px',
                 fill: 'var(--howl-ink)',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
               }}
             >
-              {p.name}
+              {sig.name}
             </text>
             <text
-              x={x}
-              y={y + 16}
-              textAnchor={anchor}
+              x={lx}
+              y={ly + 18}
+              textAnchor="middle"
               dominantBaseline="middle"
               style={{
                 fontFamily: 'Inter, sans-serif',
@@ -429,12 +512,41 @@ function HexagonRadar({ signals, size = 440 }) {
                 letterSpacing: '0.04em',
               }}
             >
-              {p.score}
+              {sigData.score}
             </text>
           </g>
         );
       })}
     </svg>
+  );
+}
+
+// ============================================================================
+// LEGEND
+// ============================================================================
+
+function SurfaceLegend() {
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center pt-2">
+      {SURFACES.map((s) => (
+        <div key={s.id} className="flex items-center gap-2">
+          <span
+            style={{
+              display: 'inline-block',
+              width: 12,
+              height: 12,
+              background: s.color,
+            }}
+          />
+          <span
+            className="howl-stamp"
+            style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}
+          >
+            {s.name}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -471,41 +583,37 @@ function ReadReport({ report, onReset, brandMeta }) {
       if (!s) return;
       lines.push(`${sig.name.toUpperCase()} — ${s.score}`);
       lines.push(s.read);
+      if (s.by_surface) {
+        const parts = SURFACES.map(
+          (su) => `${su.name} ${s.by_surface[su.id] ?? 0}`
+        ).join(' · ');
+        lines.push(`  surfaces: ${parts}`);
+      }
       if (s.evidence?.length) {
         s.evidence.forEach((e) => lines.push(`  • ${e}`));
       }
       lines.push('');
     });
     lines.push('— EDGE —');
-    (report.edge || []).forEach((r) => {
-      lines.push(`${r.title}: ${r.rationale}`);
-    });
+    (report.edge || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
     lines.push('');
     lines.push('— PLAY —');
-    (report.play || []).forEach((r) => {
-      lines.push(`${r.title}: ${r.rationale}`);
-    });
+    (report.play || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
     navigator.clipboard.writeText(lines.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12 howl-fadein">
-      {/* Header strip */}
+    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+      {/* Verdict header */}
       <div className="mb-10">
-        <div
-          className="howl-stamp mb-2"
-          style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
-        >
+        <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
           The READ — {brandMeta.brandName}
         </div>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div>
-            <div
-              className="font-display"
-              style={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }}
-            >
+            <div className="font-display" style={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }}>
               {verdict.name.toUpperCase()}.
             </div>
             <p
@@ -520,10 +628,7 @@ function ReadReport({ report, onReset, brandMeta }) {
             style={{ minWidth: 160, background: 'var(--howl-ink)', color: 'var(--howl-bone)', borderColor: 'var(--howl-ink)' }}
           >
             <div className="text-[10px] tracking-[0.15em] uppercase opacity-70">Overall</div>
-            <div
-              className="font-display"
-              style={{ fontSize: '4rem', color: 'var(--howl-coral)' }}
-            >
+            <div className="font-display" style={{ fontSize: '4rem', color: 'var(--howl-coral)' }}>
               {overall}
             </div>
             <div className="text-[10px] tracking-[0.15em] uppercase opacity-70">/ 100</div>
@@ -536,7 +641,6 @@ function ReadReport({ report, onReset, brandMeta }) {
         <div
           className="mb-10 p-6"
           style={{
-            borderLeft: '4px solid var(--howl-coral)',
             background: 'var(--howl-bone)',
             border: '1.5px solid var(--howl-ink)',
             borderLeftWidth: '4px',
@@ -549,18 +653,20 @@ function ReadReport({ report, onReset, brandMeta }) {
         </div>
       )}
 
-      {/* Hexagon + summary side by side */}
-      <div className="grid md:grid-cols-2 gap-8 mb-12">
-        <div className="card-howl p-6">
+      {/* Radial chart + summary */}
+      <div className="grid md:grid-cols-5 gap-6 mb-12">
+        <div className="card-howl p-6 md:col-span-3">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
-            Six Signals
+            Six Signals × Four Surfaces
           </div>
-          <HexagonRadar signals={report.signals} />
+          <RadialStackedBars signals={report.signals} />
+          <SurfaceLegend />
+          <p className="text-xs text-center mt-4" style={{ color: 'var(--howl-mute)' }}>
+            Each wedge is a signal. Each band inside the wedge is a surface score. Longer wedge = louder.
+          </p>
         </div>
-        <div className="card-howl p-6">
-          <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
-            The Read
-          </div>
+        <div className="card-howl p-6 md:col-span-2">
+          <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>The Read</div>
           {report.summary && (
             <p
               className="text-base mb-5"
@@ -575,18 +681,12 @@ function ReadReport({ report, onReset, brandMeta }) {
               if (!s) return null;
               return (
                 <div key={sig.id} className="flex items-center justify-between text-sm">
-                  <span className="howl-stamp" style={{ fontSize: '0.875rem' }}>{sig.name}</span>
-                  <div className="flex items-center gap-3 flex-1 mx-4">
-                    <div
-                      className="flex-1 h-2 relative"
-                      style={{ background: 'var(--howl-cream-deep)' }}
-                    >
+                  <span className="howl-stamp" style={{ fontSize: '0.8125rem' }}>{sig.name}</span>
+                  <div className="flex items-center gap-3 flex-1 mx-3">
+                    <div className="flex-1 h-2 relative" style={{ background: 'var(--howl-cream-deep)' }}>
                       <div
                         className="absolute inset-y-0 left-0"
-                        style={{
-                          width: `${s.score}%`,
-                          background: scoreColor(s.score),
-                        }}
+                        style={{ width: `${s.score}%`, background: scoreColor(s.score) }}
                       />
                     </div>
                   </div>
@@ -603,7 +703,7 @@ function ReadReport({ report, onReset, brandMeta }) {
         </div>
       </div>
 
-      {/* Per-signal cards */}
+      {/* Per-signal cards with surface breakdown */}
       <div className="mb-12">
         <h2 className="font-display mb-6" style={{ fontSize: '2rem' }}>
           The signals, signal by signal.
@@ -615,19 +715,12 @@ function ReadReport({ report, onReset, brandMeta }) {
             return (
               <div key={sig.id} className="card-howl p-6">
                 <div className="flex items-baseline justify-between mb-3">
-                  <div
-                    className="font-display"
-                    style={{ fontSize: '1.625rem', lineHeight: 1 }}
-                  >
+                  <div className="font-display" style={{ fontSize: '1.625rem', lineHeight: 1 }}>
                     {sig.name}
                   </div>
                   <div
                     className="font-display"
-                    style={{
-                      fontSize: '2rem',
-                      lineHeight: 1,
-                      color: scoreColor(s.score),
-                    }}
+                    style={{ fontSize: '2rem', lineHeight: 1, color: scoreColor(s.score) }}
                   >
                     {s.score}
                   </div>
@@ -644,21 +737,40 @@ function ReadReport({ report, onReset, brandMeta }) {
                 >
                   {s.read}
                 </p>
+
+                {/* Surface mini-bars */}
+                {s.by_surface && (
+                  <div className="pt-4 mb-4" style={{ borderTop: '1px solid var(--howl-cream-deep)' }}>
+                    <div className="text-[10px] tracking-[0.15em] uppercase mb-3 font-bold" style={{ color: 'var(--howl-mute)' }}>
+                      By Surface
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SURFACES.map((surface) => {
+                        const ss = s.by_surface[surface.id] ?? 0;
+                        return (
+                          <div key={surface.id} className="flex items-center gap-2">
+                            <span style={{ width: 8, height: 8, background: surface.color, display: 'inline-block' }} />
+                            <span className="text-[11px] tracking-wide uppercase font-semibold flex-1" style={{ color: 'var(--howl-ink-soft)' }}>
+                              {surface.name}
+                            </span>
+                            <span className="text-sm font-bold tabular-nums" style={{ color: scoreColor(ss) }}>
+                              {ss}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {s.evidence && s.evidence.length > 0 && (
                   <div className="pt-4" style={{ borderTop: '1px solid var(--howl-cream-deep)' }}>
-                    <div
-                      className="text-[10px] tracking-[0.15em] uppercase mb-2 font-bold"
-                      style={{ color: 'var(--howl-mute)' }}
-                    >
+                    <div className="text-[10px] tracking-[0.15em] uppercase mb-2 font-bold" style={{ color: 'var(--howl-mute)' }}>
                       Evidence
                     </div>
                     <ul className="space-y-1.5">
                       {s.evidence.map((e, i) => (
-                        <li
-                          key={i}
-                          className="text-sm flex gap-2"
-                          style={{ color: 'var(--howl-ink-soft)' }}
-                        >
+                        <li key={i} className="text-sm flex gap-2" style={{ color: 'var(--howl-ink-soft)' }}>
                           <span style={{ color: 'var(--howl-coral)' }}>—</span>
                           <span>{e}</span>
                         </li>
@@ -672,29 +784,26 @@ function ReadReport({ report, onReset, brandMeta }) {
         </div>
       </div>
 
-      {/* EDGE recommendations */}
       <RecommendationBlock
         label="EDGE"
         sublabel="Strategic moves to sharpen who you are."
         icon={<Zap size={20} />}
         recommendations={report.edge || []}
-        accent="var(--howl-ink)"
         bg="var(--howl-ink)"
         fg="var(--howl-bone)"
+        accent="var(--howl-ink)"
       />
 
-      {/* PLAY recommendations */}
       <RecommendationBlock
         label="PLAY"
         sublabel="Creative provocations to earn attention beyond the feed."
         icon={<Sparkles size={20} />}
         recommendations={report.play || []}
-        accent="var(--howl-coral)"
         bg="var(--howl-coral)"
         fg="var(--howl-ink)"
+        accent="var(--howl-coral)"
       />
 
-      {/* Actions */}
       <div className="flex flex-wrap gap-3 justify-center pt-6">
         <button onClick={copyText} className="btn-ghost">
           {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy the READ</>}
@@ -719,18 +828,11 @@ function ReadReport({ report, onReset, brandMeta }) {
   );
 }
 
-// ============================================================================
-// RECOMMENDATION BLOCK — used for EDGE and PLAY
-// ============================================================================
-
 function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, accent }) {
   if (!recommendations || recommendations.length === 0) return null;
   return (
     <div className="mb-10">
-      <div
-        className="p-6 mb-5"
-        style={{ background: bg, color: fg, border: `1.5px solid ${accent}` }}
-      >
+      <div className="p-6 mb-5" style={{ background: bg, color: fg, border: `1.5px solid ${accent}` }}>
         <div className="flex items-center gap-3 mb-1">
           {icon}
           <div className="font-display" style={{ fontSize: '2.25rem', lineHeight: 1 }}>
@@ -764,10 +866,6 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, a
   );
 }
 
-// ============================================================================
-// ERROR
-// ============================================================================
-
 function ErrorScreen({ error, onBack }) {
   return (
     <main className="mx-auto max-w-2xl px-6 py-20 howl-fadein">
@@ -778,9 +876,7 @@ function ErrorScreen({ error, onBack }) {
             The READ stalled
           </div>
         </div>
-        <p className="mb-5" style={{ color: 'var(--howl-ink-soft)' }}>
-          {error}
-        </p>
+        <p className="mb-5" style={{ color: 'var(--howl-ink-soft)' }}>{error}</p>
         <p className="text-sm mb-6" style={{ color: 'var(--howl-mute)' }}>
           If this keeps happening, check that <code>ANTHROPIC_API_KEY</code> is set
           on your Vercel environment, and that the brand URL is reachable.
@@ -795,7 +891,7 @@ function ErrorScreen({ error, onBack }) {
 }
 
 // ============================================================================
-// PROMPT BUILDERS
+// PROMPT BUILDERS — brand-agnostic, surface-aware
 // ============================================================================
 
 function buildSystemPrompt() {
@@ -804,110 +900,142 @@ function buildSystemPrompt() {
       `### ${s.id} — ${s.name}\n` +
       `Question: ${s.question}\n` +
       `Thesis: ${s.thesis}\n` +
-      `Strong signals: ${s.strong.join('; ')}\n` +
-      `Moderate signals: ${s.moderate.join('; ')}\n` +
-      `Weak signals: ${s.weak.join('; ')}\n`
+      `Strong: ${s.strong.join('; ')}\n` +
+      `Moderate: ${s.moderate.join('; ')}\n` +
+      `Weak: ${s.weak.join('; ')}\n`
   ).join('\n');
 
-  return `You are the analytical engine behind HOWL READ — a diagnostic tool from HOWL, a creative agency for sustainability and impact leaders born inside Antenna Group.
+  const surfaceSpec = SURFACES.map(
+    (s) =>
+      `### ${s.id} — ${s.name}\n` +
+      `Covers: ${s.description}\n` +
+      `Look for: ${s.looks_for.join('; ')}\n`
+  ).join('\n');
 
-HOWL's thesis:
-- Sustainability has been whispering in a room where everyone is shouting. At the same volume. At the same frequency. At the same time.
-- The narrative has gone numb. "Sustainability" now signals obligation, complexity, and compromise — the opposite of what it actually is.
-- Consequential brands do not communicate impact, they embody it. Impact is identity, not message.
-- Show scars AND vision. Inauthenticity is invisibility. Round-numbered aspiration without methodology is a red flag, not a green one.
-- Sustainability messaging works when it connects to identity, not guilt. Benefit. Authenticity. Desire. Momentum.
+  return `You are the analytical engine behind HOWL READ — a brand diagnostic from HOWL, a creative agency born inside Antenna Group.
+
+HOWL's thesis applies to any brand, not only sustainability or impact brands:
+- Everyone is shouting at the same volume, at the same frequency, at the same time. The truth stands out. Real doesn't compete; it commands.
+- Consequential brands do not communicate values, they embody them. Distinctiveness is identity, not message.
+- Show scars AND vision. Round-numbered aspiration without methodology is a red flag, not a green one.
+- Marketing works when it connects to identity, not duty. Benefit. Authenticity. Desire. Momentum.
 - The job is to move brands from performative to meaningful, from safe to believed.
 
-You speak in HOWL's voice: direct, sharp, observational, anti-corporate. No hedged consultant language. No "sustainability journey" clichés. You name what you see. You do not lecture.
+You speak in HOWL's voice: direct, sharp, observational, anti-corporate. No hedged consultant language. No "journey" clichés. No "leveraging", "ecosystem", "stakeholders" — unless mocking them. You name what you see. You do not lecture.
 
-You score brands across SIX signals (0-100 each):
+You score brands across SIX SIGNALS (each 0-100):
 
 ${signalSpec}
 
-You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You web_search the brand's website, sustainability page, news coverage, and recent campaigns before scoring. You quote nothing verbatim — you describe and assess.
+You evaluate each signal across FOUR EVIDENCE SURFACES (each 0-100):
 
-You return STRICT JSON only. No prose outside the JSON. No code fences. The schema is:
+${surfaceSpec}
+
+Use web_search aggressively before scoring. For each brand you read:
+1. Fetch the homepage and About page.
+2. Search for the brand's recent social posts on LinkedIn, Instagram, X, TikTok, YouTube.
+3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit, App stores.
+4. Search for tier-one earned media coverage from the last 12 months.
+5. Note how publicly accessible AI information describes the brand.
+
+You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You name pages, campaigns, partners, language patterns, headlines. No generic statements like "their website discusses sustainability".
+
+Return STRICT JSON only. No prose outside the JSON. No code fences. The schema is:
 
 {
   "verdict": "1-2 sentence pull-quote in HOWL voice naming the brand's current stance",
   "summary": "3-4 sentence read of where the brand stands overall — sharp, specific, no hedging",
   "signals": {
-    "VOLUME":      { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice", "evidence": ["specific observation", "specific observation", "specific observation"] },
-    "INTEGRATION": { "score": <int 0-100>, "read": "...", "evidence": [...] },
-    "IDENTITY":    { "score": <int 0-100>, "read": "...", "evidence": [...] },
-    "CANDOR":      { "score": <int 0-100>, "read": "...", "evidence": [...] },
-    "DESIRE":      { "score": <int 0-100>, "read": "...", "evidence": [...] },
-    "MOMENTUM":    { "score": <int 0-100>, "read": "...", "evidence": [...] }
+    "VOLUME":      { "score": <int 0-100, average of by_surface>, "read": "2-3 sentences in HOWL voice", "by_surface": {"WEBSITE": <int>, "SOCIAL": <int>, "REPUTATION": <int>, "EARNED": <int>}, "evidence": ["specific observation", "specific observation", "specific observation"] },
+    "INTEGRATION": { ... },
+    "IDENTITY":    { ... },
+    "CANDOR":      { ... },
+    "DESIRE":      { ... },
+    "MOMENTUM":    { ... }
   },
   "edge": [
     { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice on what this strategic move does and why for THIS brand", "addresses": ["SIGNAL_ID", "SIGNAL_ID"] }
   ],
   "play": [
-    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice on the creative provocation and what makes it earnable for THIS brand", "addresses": ["SIGNAL_ID"] }
+    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice on the creative provocation and why it's earnable for THIS brand", "addresses": ["SIGNAL_ID"] }
   ]
 }
 
-Rules:
-- Score honestly. Most brands score in the 30-60 range. Reserve 70+ for genuinely strong signals with real evidence. 85+ should be rare.
-- Evidence MUST be specific to this brand. No generic statements like "their website discusses sustainability". Name the page, the campaign, the partner, the language pattern.
-- Voice: HOWL. Short sentences. No "navigating", "leveraging", "ecosystem", "stakeholders" unless you are mocking them.
-- 3 EDGE recommendations and 3 PLAY recommendations. Each addresses one or more of the weakest signals. Each is BRAND-SPECIFIC — invent the move for this brand, do not give generic agency boilerplate.
-- "addresses" arrays use the signal IDs in UPPERCASE: VOLUME, INTEGRATION, IDENTITY, CANDOR, DESIRE, MOMENTUM.
-- Return ONLY the JSON object. No markdown fences. No preamble. No closing remarks.`;
+Scoring rules:
+- The "score" for each signal MUST equal the rounded average of its four by_surface scores. The client will verify and recompute this if inconsistent.
+- Score honestly. Most brands fall in 30-65 range. Reserve 70+ for genuinely strong signals with real evidence. 85+ should be rare.
+- Surface scores can diverge meaningfully within a single signal — e.g., VOLUME may be 75 on WEBSITE but 35 on EARNED. Surface that pattern in the "read".
+- Evidence MUST be specific. Name the page, the campaign, the partner, the language pattern.
+- Voice: HOWL. Short sentences.
+- 3 EDGE recommendations and 3 PLAY recommendations. Each addresses the weakest signals. Each is BRAND-SPECIFIC — invent the move for THIS brand, not generic agency boilerplate.
+- "addresses" arrays use UPPERCASE signal IDs: VOLUME, INTEGRATION, IDENTITY, CANDOR, DESIRE, MOMENTUM.
+- Return ONLY the JSON object. No markdown fences. No preamble.`;
 }
 
-function buildUserPrompt({ brandName, websiteUrl, category, context }) {
-  const cat = IMPACT_CATEGORIES.find((c) => c.id === category)?.name || 'Other';
-  return `Brand: ${brandName}
-Website: ${websiteUrl}
-Impact category: ${cat}
-${context ? `\nAdditional context the user provided:\n${context}` : ''}
-
-Run the READ. Use web_search to look at the brand's homepage, sustainability or impact page, recent campaigns, and any earned coverage from the last 12 months. Then return the JSON.`;
+function buildUserPrompt({ brandName, websiteUrl, category, businessModel, socials, aiSummary, context }) {
+  const cat = CATEGORIES.find((c) => c.id === category)?.name || 'Other';
+  const bm = BUSINESS_MODELS.find((b) => b.id === businessModel)?.name || 'B2C';
+  const lines = [
+    `Brand: ${brandName}`,
+    `Website: ${websiteUrl}`,
+    `Category: ${cat}`,
+    `Business model: ${bm}`,
+  ];
+  if (socials) lines.push(`Social handles: ${socials}`);
+  if (aiSummary) lines.push(`\nHow AI engines describe the brand (user-provided):\n${aiSummary}`);
+  if (context) lines.push(`\nAdditional context the user provided:\n${context}`);
+  lines.push(
+    `\nRun the READ. Use web_search to look at the brand's website, social presence, third-party reputation surfaces (Trustpilot, Glassdoor, Reddit, AI engine descriptions), and earned media from the last 12 months. Then return the JSON.`
+  );
+  return lines.join('\n');
 }
 
 // ============================================================================
-// RESPONSE PARSING — tolerant of fences, preambles, trailing text
+// RESPONSE PARSING + NORMALIZATION
 // ============================================================================
 
 function extractJson(text) {
   if (!text) throw new Error('Empty response from Claude.');
   let cleaned = text.trim();
-  // Strip code fences if present
   cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
-  // Find first { and matching last }
   const first = cleaned.indexOf('{');
   const last = cleaned.lastIndexOf('}');
-  if (first === -1 || last === -1) {
-    throw new Error('No JSON object found in response.');
-  }
-  const slice = cleaned.slice(first, last + 1);
-  return JSON.parse(slice);
+  if (first === -1 || last === -1) throw new Error('No JSON object found in response.');
+  return JSON.parse(cleaned.slice(first, last + 1));
 }
 
 function normalizeReport(raw) {
-  // Validate signals and compute overall score
   const signals = {};
   let total = 0;
   let count = 0;
   SIGNALS.forEach((sig) => {
     const s = raw.signals?.[sig.id];
-    if (s && typeof s.score === 'number') {
-      const clamped = Math.max(0, Math.min(100, Math.round(s.score)));
-      signals[sig.id] = {
-        score: clamped,
-        read: s.read || '',
-        evidence: Array.isArray(s.evidence) ? s.evidence.slice(0, 6) : [],
-      };
-      total += clamped;
-      count += 1;
-    } else {
-      signals[sig.id] = { score: 0, read: '', evidence: [] };
+    if (!s) {
+      signals[sig.id] = { score: 0, read: '', evidence: [], by_surface: zeroSurfaces() };
+      return;
     }
+    const by_surface = {};
+    let surfaceTotal = 0;
+    let surfaceCount = 0;
+    SURFACE_IDS.forEach((id) => {
+      const v = s.by_surface?.[id];
+      const clamped = typeof v === 'number' ? Math.max(0, Math.min(100, Math.round(v))) : 0;
+      by_surface[id] = clamped;
+      surfaceTotal += clamped;
+      surfaceCount += 1;
+    });
+    // Signal score = mean of surfaces (recompute to ensure consistency)
+    const score = surfaceCount > 0 ? Math.round(surfaceTotal / surfaceCount) : 0;
+    signals[sig.id] = {
+      score,
+      read: s.read || '',
+      evidence: Array.isArray(s.evidence) ? s.evidence.slice(0, 6) : [],
+      by_surface,
+    };
+    total += score;
+    count += 1;
   });
   const overall = count > 0 ? Math.round(total / count) : 0;
-
   return {
     overall_score: overall,
     verdict: raw.verdict || '',
@@ -918,8 +1046,14 @@ function normalizeReport(raw) {
   };
 }
 
+function zeroSurfaces() {
+  const o = {};
+  SURFACE_IDS.forEach((id) => { o[id] = 0; });
+  return o;
+}
+
 // ============================================================================
-// APP — state machine + persistence
+// APP
 // ============================================================================
 
 const STORAGE_KEY = 'howl-read:last';
@@ -931,7 +1065,6 @@ export default function App() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Restore last report if present (nice on reload)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -960,10 +1093,10 @@ export default function App() {
           system: buildSystemPrompt(),
           messages: [{ role: 'user', content: buildUserPrompt(meta) }],
           model: 'claude-sonnet-4-6',
-          max_tokens: 8000,
+          max_tokens: 10000,
           temperature: 0.2,
           useWebSearch: true,
-          webSearchMaxUses: 6,
+          webSearchMaxUses: 8,
         }),
       });
 
@@ -985,11 +1118,8 @@ export default function App() {
 
       setReport(normalized);
       try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ brandMeta: meta, report: normalized })
-        );
-      } catch { /* ignore quota errors */ }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ brandMeta: meta, report: normalized }));
+      } catch { /* ignore */ }
       setView('report');
     } catch (e) {
       console.error(e);
