@@ -7,6 +7,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Password gate. ACCESS_PASSWORD is the env var. If unset on the server,
+  // the endpoint refuses traffic so a misconfigured deploy doesn't accidentally
+  // expose the Anthropic key.
+  const expectedPassword = process.env.ACCESS_PASSWORD;
+  if (!expectedPassword) {
+    return res.status(500).json({ error: 'ACCESS_PASSWORD is not configured on the server.' });
+  }
+  const providedPassword = req.headers['x-howl-password'];
+  if (providedPassword !== expectedPassword) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' });

@@ -15,6 +15,20 @@ import {
 } from './data/rubric';
 import pkg from '../package.json';
 import {
+  getPassword,
+  setPassword,
+  clearPassword,
+  hasPassword,
+  passwordHeaders,
+} from './lib/auth';
+import {
+  saveRead,
+  fetchRecentReads,
+  fetchReadById,
+  deleteRead,
+  supabaseEnabled,
+} from './lib/supabase';
+import {
   ArrowRight,
   ArrowLeft,
   Loader2,
@@ -26,6 +40,10 @@ import {
   RefreshCw,
   Sparkles,
   Zap,
+  Lock,
+  LogOut,
+  Trash2,
+  Clock,
 } from 'lucide-react';
 
 // Auto-incremented on every build via scripts/bump-version.cjs.
@@ -83,7 +101,245 @@ function BuildBadge() {
 // HEADER
 // ============================================================================
 
-function Header({ onReset, showReset }) {
+// ============================================================================
+// PASSWORD GATE — gates the whole app behind a server-validated password.
+// ============================================================================
+
+function PasswordGate({ children }) {
+  const [authed, setAuthed] = useState(() => hasPassword());
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (!input.trim()) return;
+    setChecking(true);
+    try {
+      const res = await fetch('/api/check-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: input.trim() }),
+      });
+      if (res.ok) {
+        setPassword(input.trim());
+        setAuthed(true);
+      } else {
+        setError('Wrong password.');
+      }
+    } catch {
+      setError('Could not reach the server. Try again.');
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  if (authed) return children;
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main className="howl-fadein" style={{ width: '100%', maxWidth: 420, padding: '2rem 1.5rem' }}>
+        <div className="flex items-center gap-3 mb-6">
+          <HowlLogo height={28} />
+          <div style={{ borderLeft: '1.5px solid var(--howl-ink)', paddingLeft: '0.75rem' }}>
+            <div className="howl-stamp" style={{ fontSize: '1rem', lineHeight: 1 }}>
+              THE READ
+            </div>
+          </div>
+        </div>
+
+        <h1
+          className="font-display"
+          style={{ fontSize: 'clamp(1.875rem, 4vw, 2.5rem)', lineHeight: 1.05, marginBottom: '1rem' }}
+        >
+          Members only.
+        </h1>
+        <p style={{ color: 'var(--howl-ink-soft)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          The Read is a HOWL tool. Sign in with the password your team gave you.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label-howl" htmlFor="pwd">Password</label>
+            <input
+              id="pwd"
+              type="password"
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="input-howl"
+              disabled={checking}
+            />
+          </div>
+
+          {error && (
+            <div
+              className="flex items-start gap-2 p-3"
+              style={{
+                border: '1.5px solid var(--howl-weak)',
+                background: 'rgba(183, 53, 37, 0.08)',
+                color: 'var(--howl-weak)',
+              }}
+            >
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
+          <button type="submit" disabled={checking} className="btn-howl w-full justify-center">
+            {checking ? <><Loader2 size={16} className="animate-spin" /> Checking</> : <><Lock size={14} /> Sign in</>}
+          </button>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+// ============================================================================
+// VERDICT STAMP — small pill showing Whispering / Speaking / Howling
+// ============================================================================
+
+function VerdictStamp({ score, size = 'sm' }) {
+  const v = getVerdict(score);
+  const padding = size === 'sm' ? '3px 8px' : '5px 12px';
+  const fontSize = size === 'sm' ? '0.625rem' : '0.75rem';
+  return (
+    <span
+      className="howl-stamp"
+      style={{
+        background: v.color,
+        color: 'var(--howl-bone)',
+        padding,
+        fontSize,
+        letterSpacing: '0.1em',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {v.name}
+    </span>
+  );
+}
+
+// ============================================================================
+// PREVIOUS READS — list of past reads from Supabase. Shown on intake view.
+// ============================================================================
+
+function PreviousReads({ onLoad, onRerun }) {
+  const [reads, setReads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  useEffect(() => {
+    if (!supabaseEnabled) {
+      setLoading(false);
+      return;
+    }
+    fetchRecentReads().then((data) => {
+      setReads(data);
+      setLoading(false);
+    });
+  }, []);
+
+  if (!supabaseEnabled) return null;
+  if (loading) return null;
+  if (!reads.length) return null;
+
+  async function handleDelete(id) {
+    setBusyId(id);
+    const ok = await deleteRead(id);
+    if (ok) setReads((rs) => rs.filter((r) => r.id !== id));
+    setBusyId(null);
+  }
+
+  return (
+    <section
+      className="mt-16 pt-10"
+      style={{ borderTop: '1px solid var(--howl-cream-deep)' }}
+    >
+      <div className="flex items-center gap-3 mb-5">
+        <Clock size={18} style={{ color: 'var(--howl-coral)' }} />
+        <h2 className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
+          Previous Reads
+        </h2>
+      </div>
+
+      <div className="space-y-2">
+        {reads.map((r) => {
+          const date = new Date(r.created_at);
+          const dateStr = date.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
+          return (
+            <div
+              key={r.id}
+              className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onLoad(r)}
+            >
+              <div className="flex-1 min-w-0">
+                <div
+                  className="font-display truncate"
+                  style={{ fontSize: '1.0625rem', lineHeight: 1.1 }}
+                >
+                  {r.brand_name}
+                </div>
+                <div
+                  className="text-[11px] tracking-wide uppercase mt-1"
+                  style={{ color: 'var(--howl-mute)' }}
+                >
+                  {dateStr}
+                </div>
+              </div>
+              <div
+                className="font-display tabular-nums shrink-0"
+                style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
+              >
+                {r.overall_score}
+              </div>
+              <div className="shrink-0">
+                <VerdictStamp score={r.overall_score} />
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRerun(r);
+                }}
+                className="btn-ghost shrink-0"
+                title="Run this READ again"
+                style={{ padding: '6px 10px' }}
+              >
+                <RefreshCw size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(r.id);
+                }}
+                disabled={busyId === r.id}
+                title="Delete"
+                className="shrink-0"
+                style={{
+                  padding: '6px 8px',
+                  color: 'var(--howl-mute)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Header({ onReset, showReset, onSignOut }) {
   return (
     <header
       style={{
@@ -109,12 +365,24 @@ function Header({ onReset, showReset }) {
             </div>
           </div>
         </div>
-        {showReset && (
-          <button onClick={onReset} className="btn-ghost">
-            <RefreshCw size={14} />
-            New READ
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {showReset && (
+            <button onClick={onReset} className="btn-ghost">
+              <RefreshCw size={14} />
+              New READ
+            </button>
+          )}
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="btn-ghost"
+              title="Sign out"
+              style={{ padding: '6px 10px' }}
+            >
+              <LogOut size={14} />
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
@@ -362,10 +630,8 @@ function RunningRead({ brandName, stage }) {
         className="howl-stamp mb-3"
         style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
       >
-        {stage === 'ai-sample'
-          ? 'Sampling AI representation'
-          : stage === 'social'
-          ? 'Finding social presence'
+        {stage === 'discovery'
+          ? 'Sampling AI and social presence'
           : 'Running the READ'}
       </div>
       <h2 className="font-display mb-8" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
@@ -1197,6 +1463,8 @@ HOWL's thesis applies to any brand, not only sustainability or impact brands:
 
 You speak in HOWL's voice: direct, sharp, observational, anti-corporate. No hedged consultant language. No "journey" clichés. No "leveraging", "ecosystem", "stakeholders", unless mocking them. You name what you see. You do not lecture.
 
+PUNCTUATION RULE: Never use em-dashes (—) or en-dashes (–) in any output text. They are banned. Use periods, commas, colons, or parentheses instead. Two short sentences beat one with an em-dash. This rule applies to every "read", "rationale", "summary", "verdict", and any other text field in the JSON.
+
 You score brands across SIX SIGNALS (each 0-100):
 
 ${signalSpec}
@@ -1292,6 +1560,31 @@ function buildUserPrompt({ brandName, websiteUrl, category, businessModel, socia
 // RESPONSE PARSING + NORMALIZATION
 // ============================================================================
 
+// Strip em-dashes and en-dashes from every string in the parsed JSON.
+// Safety net: even with a "no em-dashes" rule in the system prompt, the model
+// occasionally slips. This walks the response recursively and replaces them
+// with context-aware punctuation before the data reaches the UI.
+function stripDashes(value) {
+  if (typeof value === 'string') {
+    return value
+      .replace(/ [—–] ([A-Z])/g, '. $1')   // " — Capital" → ". Capital"
+      .replace(/ [—–] (\d)/g, ': $1')       // " — 42" → ": 42"
+      .replace(/ [—–] /g, ', ')             // " — anything else" → ", anything else"
+      .replace(/[—–]/g, '-');               // bare leftover → simple hyphen
+  }
+  if (Array.isArray(value)) {
+    return value.map(stripDashes);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) {
+      out[k] = stripDashes(value[k]);
+    }
+    return out;
+  }
+  return value;
+}
+
 // Walks the text forward tracking brace depth (respecting strings and escapes)
 // and returns every top-level {...} substring it finds. Robust against Claude
 // emitting prose after the JSON, intermediate tool-use chatter, or multiple
@@ -1331,7 +1624,7 @@ function findJsonObjects(s) {
         objects.push(s.slice(start, i + 1));
         start = -1;
       } else if (depth < 0) {
-        // Stray closing brace — reset and continue
+        // Stray closing brace, reset and continue
         depth = 0;
         start = -1;
       }
@@ -1488,7 +1781,10 @@ If you do not have reliable information about this brand, say so explicitly, e.g
   try {
     const res = await fetch('/api/claude', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...passwordHeaders(),
+      },
       body: JSON.stringify({
         messages: [{ role: 'user', content: prompt }],
         model: 'claude-sonnet-4-6',
@@ -1549,7 +1845,10 @@ Return only the JSON. No prose, no code fences.`;
   try {
     const res = await fetch('/api/claude', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...passwordHeaders(),
+      },
       body: JSON.stringify({
         messages: [{ role: 'user', content: prompt }],
         model: 'claude-sonnet-4-6',
@@ -1625,16 +1924,18 @@ export default function App() {
     setView('running');
 
     try {
-      // Step 1, unprompted AI description (no web search)
-      setStage('ai-sample');
-      const aiDescription = await fetchAiDescription(meta.brandName, meta.websiteUrl);
-
-      // Step 2, social handle discovery (web search, narrow budget)
-      setStage('social');
-      const socialHandles = await fetchSocialHandles(meta.brandName, meta.websiteUrl);
+      // Steps 1 and 2 run in parallel since they're independent.
+      // AI description does not need handles. Handle discovery does not need
+      // the description. Running them concurrently shaves 15-25 seconds off
+      // the total wall-clock time.
+      setStage('discovery');
+      const [aiDescription, socialHandles] = await Promise.all([
+        fetchAiDescription(meta.brandName, meta.websiteUrl),
+        fetchSocialHandles(meta.brandName, meta.websiteUrl),
+      ]);
       const socialsStr = formatSocialsForPrompt(socialHandles);
 
-      // Step 3, main READ with everything injected
+      // Step 3, main READ with everything injected.
       setStage('main');
       const enrichedMeta = {
         ...meta,
@@ -1644,7 +1945,10 @@ export default function App() {
 
       const res = await fetch('/api/claude', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...passwordHeaders(),
+        },
         body: JSON.stringify({
           system: buildSystemPrompt(),
           messages: [{ role: 'user', content: buildUserPrompt(enrichedMeta) }],
@@ -1656,6 +1960,10 @@ export default function App() {
         }),
       });
 
+      if (res.status === 401) {
+        clearPassword();
+        throw new Error('Session expired. Refresh the page and sign in again.');
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `Server returned ${res.status}.`);
@@ -1669,7 +1977,7 @@ export default function App() {
           .map((b) => b.text)
           .join('\n');
 
-      const raw = extractJson(text);
+      const raw = stripDashes(extractJson(text));
       const normalized = normalizeReport(raw);
       normalized.ai_description = aiDescription;
       normalized.social_handles = socialHandles;
@@ -1681,6 +1989,10 @@ export default function App() {
           JSON.stringify({ brandMeta: meta, report: normalized })
         );
       } catch { /* ignore */ }
+
+      // Persist to Supabase in the background. Don't block the report on it.
+      saveRead(meta, normalized).catch((e) => console.error('saveRead failed:', e));
+
       setView('report');
     } catch (e) {
       console.error(e);
@@ -1700,10 +2012,48 @@ export default function App() {
     setView('intake');
   }
 
+  // Load a saved read from Supabase (no re-run, just display the stored result).
+  async function loadFromHistory(row) {
+    if (!row?.id) return;
+    setError('');
+    setView('running');
+    setStage('main');
+    setBrandMeta(row.brand_meta || { brandName: row.brand_name });
+    const full = await fetchReadById(row.id);
+    if (!full || !full.report) {
+      setError('Could not load that saved READ.');
+      setView('error');
+      setStage(null);
+      return;
+    }
+    setBrandMeta(full.brand_meta);
+    setReport(full.report);
+    setView('report');
+    setStage(null);
+  }
+
+  // Re-run a READ using a previous read's brand inputs.
+  function rerunFromHistory(row) {
+    if (!row?.brand_meta) return;
+    runRead(row.brand_meta);
+  }
+
+  function signOut() {
+    clearPassword();
+    window.location.reload();
+  }
+
   return (
-    <div>
-      <Header onReset={reset} showReset={view !== 'intake'} />
-      {view === 'intake' && <IntakeForm onSubmit={runRead} disabled={submitting} />}
+    <PasswordGate>
+      <Header onReset={reset} showReset={view !== 'intake'} onSignOut={signOut} />
+      {view === 'intake' && (
+        <>
+          <IntakeForm onSubmit={runRead} disabled={submitting} />
+          <div className="mx-auto max-w-6xl px-6 pb-16">
+            <PreviousReads onLoad={loadFromHistory} onRerun={rerunFromHistory} />
+          </div>
+        </>
+      )}
       {view === 'running' && (
         <RunningRead brandName={brandMeta?.brandName || ''} stage={stage} />
       )}
@@ -1712,6 +2062,6 @@ export default function App() {
       )}
       {view === 'error' && <ErrorScreen error={error} onBack={reset} />}
       <BuildBadge />
-    </div>
+    </PasswordGate>
   );
 }

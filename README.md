@@ -103,11 +103,11 @@ No database. No auth. Last result lives in `localStorage` only.
 ```bash
 npm install
 cp .env.example .env
-# Add your ANTHROPIC_API_KEY to .env
+# Fill in ANTHROPIC_API_KEY, ACCESS_PASSWORD, and (optionally) the Supabase pair
 npm run dev
 ```
 
-`vite dev` does not run the `/api/claude` serverless function. For local end-to-end testing with the AI call:
+`vite dev` does not run the `/api/claude` serverless functions. For local end-to-end testing with the AI call:
 
 ```bash
 npm i -g vercel
@@ -120,10 +120,46 @@ vercel dev
 
 1. Push to GitHub.
 2. Import the repo in [Vercel](https://vercel.com).
-3. Add one environment variable: `ANTHROPIC_API_KEY` (Production, Preview, Development).
+3. Add environment variables under Project Settings → Environment Variables. Apply to Production, Preview, and Development.
+
+| Variable | Required | What it does |
+|----------|----------|--------------|
+| `ANTHROPIC_API_KEY` | Yes | Server-side. The `/api/claude` proxy uses it. |
+| `ACCESS_PASSWORD` | Yes | Server-side. Gates the app. Both the login form and every `/api/claude` call validate against this. |
+| `VITE_SUPABASE_URL` | No | Client-side. Enables the Previous Reads history. |
+| `VITE_SUPABASE_ANON_KEY` | No | Client-side. Pairs with `VITE_SUPABASE_URL`. |
+
 4. Deploy.
 
-The API key is server-side only. The client posts to `/api/claude`, which proxies to Anthropic with the key attached.
+The Anthropic key is server-side only. The client posts to `/api/claude`, which validates the password and proxies to Anthropic with the key attached.
+
+---
+
+## Password gate
+
+The app is gated by a single shared password set in `ACCESS_PASSWORD`. Both the login form and every backend API call check against the same value, so the password can't be bypassed by skipping the login screen.
+
+To rotate the password, update `ACCESS_PASSWORD` on Vercel and redeploy. Every existing session will get a 401 on the next API call, which automatically signs them out and shows the login screen.
+
+This is intentionally light auth — fine for an internal team tool, not a substitute for real user accounts. The anon Supabase key is exposed in the bundle, so anyone with the URL could in principle hit the database directly. Don't put sensitive data in the `reads` table.
+
+---
+
+## Supabase (optional, for Previous Reads history)
+
+The app works without Supabase. Setting up Supabase adds two things:
+1. Every completed READ is automatically saved to a `reads` table.
+2. The intake page shows a "Previous Reads" section listing past reads with scores, verdict stamps, dates, a refresh button (re-runs the diagnostic), and a delete button.
+
+Setup steps:
+
+1. Create a free project at https://supabase.com.
+2. Project Settings → API → copy the **Project URL** and the **anon public** key.
+3. SQL Editor → New query → paste the contents of `supabase-schema.sql` → Run.
+4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to your `.env` and to Vercel's environment variables.
+5. Redeploy.
+
+If you ever want to clear all history, run `truncate table reads;` in the SQL Editor.
 
 ---
 
@@ -132,17 +168,23 @@ The API key is server-side only. The client posts to `/api/claude`, which proxie
 ```
 howl-read/
 ├── api/
-│   └── claude.js              # Anthropic proxy (Vercel serverless)
+│   ├── claude.js              # Anthropic proxy with password gate
+│   └── check-password.js      # Lightweight endpoint for the login form
 ├── public/
-│   ├── howl-logo.svg          # HOWL wordmark, replace with your file
 │   ├── howl-hero.svg          # Fallback hero (orange flowers on black)
 │   └── favicon.svg
 ├── src/
 │   ├── App.jsx                # Intake, running, report, single file
 │   ├── data/
-│   │   └── rubric.js          # Signals, surfaces, categories, playbooks
+│   │   └── rubric.js          # Signals, surfaces, belief, playbooks
+│   ├── lib/
+│   │   ├── auth.js            # Password helpers
+│   │   └── supabase.js        # Persistence layer (optional)
 │   ├── index.css              # HOWL design tokens + Tailwind v4 import
 │   └── main.jsx
+├── scripts/
+│   └── bump-version.cjs       # Auto-increment patch version on every build
+├── supabase-schema.sql        # Run this in Supabase SQL Editor
 ├── index.html
 ├── package.json
 ├── vercel.json
