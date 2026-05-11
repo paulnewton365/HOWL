@@ -111,9 +111,43 @@ function BuildBadge() {
 
 function PasswordGate({ children }) {
   const [authed, setAuthed] = useState(() => hasPassword());
+  const [verifying, setVerifying] = useState(() => hasPassword());
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
+
+  // Re-validate the cached password on mount. If the server now rejects it
+  // (rotated ACCESS_PASSWORD, redeploy, etc.), we clear the cache and bounce
+  // the user back to the login screen automatically instead of letting them
+  // bash against a 401 wall.
+  useEffect(() => {
+    if (!hasPassword()) {
+      setVerifying(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/check-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: getPassword() }),
+        });
+        if (cancelled) return;
+        if (res.status === 401) {
+          clearPassword();
+          setAuthed(false);
+          setError('Your session expired. Sign in again.');
+        }
+      } catch {
+        // Network glitch. Let the user proceed; the next API call will surface
+        // the issue with the proper error UI.
+      } finally {
+        if (!cancelled) setVerifying(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -139,7 +173,19 @@ function PasswordGate({ children }) {
     }
   }
 
-  if (authed) return children;
+  if (authed && !verifying) return children;
+
+  // Brief loading state while we re-validate the cached password on mount.
+  if (authed && verifying) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="flex items-center gap-3" style={{ color: 'var(--howl-mute)' }}>
+          <Loader2 size={18} className="animate-spin" />
+          <span className="text-sm">Checking your session.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1668,25 +1714,63 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, a
   );
 }
 
-function ErrorScreen({ error, onBack }) {
+function ErrorScreen({ error, onBack, onSignOut }) {
+  const isAuth =
+    /unauthor/i.test(error) ||
+    /session expired/i.test(error) ||
+    /401/.test(error);
+
+  function handleSignOutAndReload() {
+    clearPassword();
+    window.location.reload();
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-20 howl-fadein">
       <div className="card-howl p-7" style={{ borderColor: 'var(--howl-weak)' }}>
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle size={20} style={{ color: 'var(--howl-weak)' }} />
           <div className="howl-stamp" style={{ fontSize: '1rem', color: 'var(--howl-weak)' }}>
-            The READ stalled
+            {isAuth ? 'Session expired' : 'The READ stalled'}
           </div>
         </div>
-        <p className="mb-5" style={{ color: 'var(--howl-ink-soft)' }}>{error}</p>
-        <p className="text-sm mb-6" style={{ color: 'var(--howl-mute)' }}>
-          If this keeps happening, check that <code>ANTHROPIC_API_KEY</code> is set
-          on your Vercel environment, and that the brand URL is reachable.
-        </p>
-        <button onClick={onBack} className="btn-howl">
-          <ArrowLeft size={14} />
-          Try again
-        </button>
+
+        {isAuth ? (
+          <>
+            <p className="mb-5" style={{ color: 'var(--howl-ink-soft)' }}>
+              Your saved password is no longer valid. This usually happens after
+              the team rotates the password or redeploys.
+            </p>
+            <p className="text-sm mb-6" style={{ color: 'var(--howl-mute)' }}>
+              Sign in again to continue. Your past reads in the archive are unaffected.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <button onClick={handleSignOutAndReload} className="btn-howl">
+                <Lock size={14} />
+                Sign in again
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mb-5" style={{ color: 'var(--howl-ink-soft)' }}>{error}</p>
+            <p className="text-sm mb-6" style={{ color: 'var(--howl-mute)' }}>
+              If this keeps happening, check that <code>ANTHROPIC_API_KEY</code> and{' '}
+              <code>ACCESS_PASSWORD</code> are set on your Vercel environment, and
+              that the brand URL is reachable.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <button onClick={onBack} className="btn-howl">
+                <ArrowLeft size={14} />
+                Try again
+              </button>
+              <button onClick={handleSignOutAndReload} className="btn-ghost">
+                <LogOut size={14} />
+                Sign out
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
