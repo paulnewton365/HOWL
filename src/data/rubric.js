@@ -295,6 +295,80 @@ export const SIGNALS = [
 ];
 
 // ============================================================================
+// BELIEF DIMENSIONS
+// How consumers and audiences judge the brand on sustainability, social
+// impact, and positive impact. Trust, evidence, and the invitation to
+// participate in the brand's purpose (especially circular economy).
+// Evaluated separately from the six signals because this is reception, not
+// expression.
+// ============================================================================
+
+export const BELIEF_DIMENSIONS = [
+  {
+    id: 'TRUSTED',
+    name: 'Trusted',
+    question: 'Do audiences accept your sustainability and impact claims, or do they suspect spin?',
+    thesis: 'Trust is awarded slowly and revoked quickly. The brands that hold it are the ones audiences see as transparent about intent, not just outcome. Skepticism is the default in 2026, and the burden of proof has shifted to the brand.',
+    strong: [
+      'External commentary treats brand impact claims as credible',
+      'Reddit, forums, and creator discourse do not flag greenwashing',
+      'AI engines describe impact work matter-of-factly, not with hedging language',
+      'No recent credibility ruptures in earned coverage',
+      'Glassdoor and employee reviews track close to the public narrative',
+    ],
+    weak: [
+      'Forums (Reddit, Trustpilot, X) actively question motives or call out greenwashing',
+      'Glassdoor reviews undercut the public narrative',
+      'AI engines hedge or qualify when describing impact work',
+      'Recent earned coverage uses words like "claims", "allegedly", "purports"',
+      'Public posture and internal practice are visibly out of step',
+    ],
+  },
+  {
+    id: 'PROVEN',
+    name: 'Proven',
+    question: 'Is positive impact on the world backed by evidence audiences can verify?',
+    thesis: 'Aspirational targets without methodology are red flags now, not green ones. Proven brands lead with audited numbers, name their adverse data, and make verification easy. Everyone else is asking audiences to take their word for it, and audiences increasingly will not.',
+    strong: [
+      'Third-party verification, audits, or certifications visible and accessible',
+      'Specific metrics with methodology, not round numbers and adjectives',
+      'Year-over-year reporting with apples-to-apples comparisons',
+      'Adverse data published alongside good news',
+      'Independent ratings (B Corp, SBTi, ISS, MSCI, etc.) referenced openly',
+    ],
+    weak: [
+      'Claims dominate, evidence is buried or absent',
+      'Round-number commitments with no methodology articulated',
+      'No independent verification visible to audiences',
+      'Glossy infographics that obscure rather than reveal',
+      'Sustainability page tone is marketing, not measurement',
+    ],
+  },
+  {
+    id: 'PARTICIPATORY',
+    name: 'Participatory',
+    question: 'Are consumers invited into the impact story (circular economy, advocacy, co-creation), or only marketed to about it?',
+    thesis: 'A circular economy is not a corporate program, it is a relationship. Consumers want a role, not a brochure. Brands that activate participation turn customers into advocates and the brand into a system. Brands that broadcast at consumers keep impact as a marketing claim, not a shared project.',
+    strong: [
+      'Active take-back, return, repair, or refill programs with visible consumer participation',
+      'Community spaces where consumers contribute, advocate, or co-create',
+      'Loyalty or rewards tied to participation, not just consumption',
+      'Visible advocates who are not paid spokespeople',
+      'Clear, easy entry points for consumers to act on the brand\'s purpose',
+    ],
+    weak: [
+      'Consumers positioned as recipients of impact messaging only',
+      'Circular economy mentioned but no consumer-facing role',
+      'No peer community around the brand purpose',
+      'Calls to action are buy, not participate',
+      'Impact work happens to consumers, not with them',
+    ],
+  },
+];
+
+export const BELIEF_IDS = BELIEF_DIMENSIONS.map((d) => d.id);
+
+// ============================================================================
 // RECOMMENDATION PLAYBOOKS. EDGE (strategy) and PLAY (creative)
 // Reference patterns. The AI generates brand-specific moves at runtime.
 // ============================================================================

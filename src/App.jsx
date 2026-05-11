@@ -10,6 +10,8 @@ import {
   FRAMEWORK_VERSION,
   EDGE_PLAYBOOK,
   PLAY_PLAYBOOK,
+  BELIEF_DIMENSIONS,
+  BELIEF_IDS,
 } from './data/rubric';
 import pkg from '../package.json';
 import {
@@ -635,6 +637,20 @@ function ReadReport({ report, onReset, brandMeta }) {
       }
       lines.push('');
     });
+    if (report.belief) {
+      lines.push('## THE BELIEF READ ##');
+      BELIEF_DIMENSIONS.forEach((d) => {
+        const data = report.belief[d.id];
+        if (!data) return;
+        lines.push(`${d.name.toUpperCase()}: ${data.score ?? '–'}`);
+        if (data.read) lines.push(data.read);
+        lines.push('');
+      });
+      if (report.belief.summary) {
+        lines.push(report.belief.summary);
+        lines.push('');
+      }
+    }
     lines.push('## EDGE ##');
     (report.edge || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
     lines.push('');
@@ -838,6 +854,8 @@ function ReadReport({ report, onReset, brandMeta }) {
         </div>
       </div>
 
+      <BeliefSection belief={report.belief} />
+
       <RecommendationBlock
         label="EDGE"
         sublabel="Strategic moves to sharpen who you are."
@@ -978,6 +996,89 @@ function ReadReport({ report, onReset, brandMeta }) {
   );
 }
 
+function BeliefSection({ belief }) {
+  if (!belief) return null;
+
+  function scoreColor(score) {
+    if (score === null) return 'var(--howl-mute)';
+    if (score >= 70) return 'var(--howl-strong)';
+    if (score >= 40) return 'var(--howl-mid)';
+    return 'var(--howl-weak)';
+  }
+
+  return (
+    <div className="mb-12">
+      <div className="mb-6">
+        <h2 className="font-display" style={{ fontSize: '2rem', lineHeight: 1.05 }}>
+          The Belief Read.
+        </h2>
+        <p
+          className="text-base mt-2"
+          style={{ color: 'var(--howl-ink-soft)', fontStyle: 'italic' }}
+        >
+          How consumers and audiences judge your sustainability, impact, and intent.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-5 mb-6">
+        {BELIEF_DIMENSIONS.map((d) => {
+          const data = belief[d.id];
+          if (!data) return null;
+          return (
+            <div key={d.id} className="card-howl p-6 flex flex-col">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
+                  {d.name}
+                </div>
+                <div
+                  className="font-display tabular-nums"
+                  style={{
+                    fontSize: '2.5rem',
+                    lineHeight: 1,
+                    color: scoreColor(data.score),
+                  }}
+                >
+                  {data.score ?? '–'}
+                </div>
+              </div>
+              <p
+                className="text-xs mb-4"
+                style={{ color: 'var(--howl-mute)', fontStyle: 'italic' }}
+              >
+                {d.question}
+              </p>
+              {data.read && (
+                <p
+                  className="text-sm"
+                  style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.55 }}
+                >
+                  {data.read}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {belief.summary && (
+        <div
+          className="p-6"
+          style={{
+            background: 'var(--howl-bone)',
+            border: '1.5px solid var(--howl-ink)',
+            borderLeftWidth: '4px',
+            borderLeftColor: 'var(--howl-coral)',
+          }}
+        >
+          <p className="text-lg leading-snug" style={{ fontStyle: 'italic' }}>
+            "{belief.summary}"
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, accent }) {
   if (!recommendations || recommendations.length === 0) return null;
   return (
@@ -1076,6 +1177,15 @@ function buildSystemPrompt() {
       `Look for: ${s.looks_for.join('; ')}\n`
   ).join('\n');
 
+  const beliefSpec = BELIEF_DIMENSIONS.map(
+    (d) =>
+      `### ${d.id}, ${d.name}\n` +
+      `Question: ${d.question}\n` +
+      `Thesis: ${d.thesis}\n` +
+      `Strong: ${d.strong.join('; ')}\n` +
+      `Weak: ${d.weak.join('; ')}\n`
+  ).join('\n');
+
   return `You are the analytical engine behind HOWL READ, a brand diagnostic from HOWL, a creative agency born inside Antenna Group.
 
 HOWL's thesis applies to any brand, not only sustainability or impact brands:
@@ -1095,12 +1205,24 @@ You evaluate each signal across FOUR EVIDENCE SURFACES (each 0-100):
 
 ${surfaceSpec}
 
+You ALSO score the brand on THREE BELIEF DIMENSIONS (each 0-100). This is reception, not expression: how consumers and audiences judge the brand's sustainability, social impact, and positive impact on the world. Trust, evidence, and the invitation to participate. Every brand gets scored here, including brands without an explicit impact platform, because audiences in 2026 judge every brand on impact posture whether the brand chooses to talk about it or not.
+
+${beliefSpec}
+
+For belief scoring, focus on what AUDIENCES say and how the brand is RECEIVED, not what the brand claims. Use these signals:
+- Reddit, Trustpilot, Glassdoor, App Store reviews: are claims questioned, defended, or ignored?
+- AI engine descriptions: are claims described matter-of-factly or hedged?
+- Tier-one earned coverage: do journalists treat impact claims as fact or as PR?
+- Brand's own website: is there a take-back program, repair service, community space, advocacy channel? Are consumers given a role?
+- Certifications, audits, third-party ratings: visible, accessible, or buried?
+
 Use web_search aggressively before scoring. For each brand you read:
 1. Fetch the homepage and About page.
 2. Search for the brand's recent social posts on LinkedIn, Instagram, X, TikTok, YouTube.
 3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit, App stores.
 4. Search for tier-one earned media coverage from the last 12 months.
-5. Note how publicly accessible AI information describes the brand.
+5. Search for greenwashing or credibility commentary about the brand on Reddit and in earned media.
+6. Note how publicly accessible AI information describes the brand.
 
 You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You name pages, campaigns, partners, language patterns, headlines. No generic statements like "their website discusses sustainability".
 
@@ -1116,6 +1238,12 @@ Return STRICT JSON only. No prose outside the JSON. No code fences. The schema i
     "CANDOR":      { ... },
     "DESIRE":      { ... },
     "MOMENTUM":    { ... }
+  },
+  "belief": {
+    "TRUSTED":       { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on what audiences actually say and how the brand is received on trust" },
+    "PROVEN":        { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether evidence exists and whether audiences can find it" },
+    "PARTICIPATORY": { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether consumers have a role or just an audience seat" },
+    "summary": "3-4 sentences in HOWL voice on the overall audience verdict. Whether the brand has built trust faster than it has built evidence. Whether the impact story is a shared project or a marketing claim."
   },
   "edge": [
     { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_ID"] },
@@ -1318,11 +1446,29 @@ function normalizeReport(raw) {
   if (edge.length === 0) edge = fallbackRecommendations(signals, EDGE_PLAYBOOK);
   if (play.length === 0) play = fallbackRecommendations(signals, PLAY_PLAYBOOK);
 
+  // Belief: audience reception of sustainability, impact, and intent.
+  // Each dimension scored 0-100. Read paragraphs in HOWL voice. Optional
+  // summary across all three dimensions.
+  const belief = { summary: '' };
+  let hasBeliefData = false;
+  BELIEF_IDS.forEach((id) => {
+    const d = raw.belief?.[id];
+    if (d && typeof d === 'object') {
+      const s = typeof d.score === 'number' ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
+      belief[id] = { score: s, read: d.read || '' };
+      if (s !== null) hasBeliefData = true;
+    } else {
+      belief[id] = { score: null, read: '' };
+    }
+  });
+  if (typeof raw.belief?.summary === 'string') belief.summary = raw.belief.summary;
+
   return {
     overall_score: overall,
     verdict: raw.verdict || '',
     summary: raw.summary || '',
     signals,
+    belief: hasBeliefData ? belief : null,
     edge,
     play,
   };
