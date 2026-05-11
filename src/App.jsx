@@ -8,6 +8,8 @@ import {
   VERDICT_TIERS,
   getVerdict,
   FRAMEWORK_VERSION,
+  EDGE_PLAYBOOK,
+  PLAY_PLAYBOOK,
 } from './data/rubric';
 import pkg from '../package.json';
 import {
@@ -391,12 +393,30 @@ function RunningRead({ brandName, stage }) {
 // ============================================================================
 
 function RadialStackedBars({ signals, size = 520 }) {
+  // Animate wedges and numbers in on mount
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const startTime = performance.now();
+    const duration = 900; // ms
+    let rafId;
+    function tick(now) {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      setProgress(eased);
+      if (t < 1) rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
   const cx = size / 2;
   const cy = size / 2;
   const innerR = size * 0.12;
   const outerR = size * 0.40;
   const labelR = size * 0.45;
-  const padX = 90;                             // viewBox horizontal padding so long labels never clip
+  const padX = 90;
   const segAngle = 360 / SIGNALS.length;
   const gapDeg = 6;
   const arcDeg = segAngle - gapDeg;
@@ -479,7 +499,7 @@ function RadialStackedBars({ signals, size = 520 }) {
         let cursorR = innerR;
         const stacks = SURFACES.map((surface) => {
           const score = sigData.by_surface?.[surface.id] ?? 0;
-          const span = (score / maxStack) * (outerR - innerR);
+          const span = ((score * progress) / maxStack) * (outerR - innerR);
           const from = cursorR;
           const to = cursorR + span;
           cursorR = to;
@@ -488,6 +508,7 @@ function RadialStackedBars({ signals, size = 520 }) {
 
         const anchor = labelAnchor(midAngle);
         const [lx, ly] = polar(midAngle, labelR);
+        const displayScore = Math.round((sigData.score || 0) * progress);
 
         return (
           <g key={sig.id}>
@@ -532,7 +553,7 @@ function RadialStackedBars({ signals, size = 520 }) {
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {sigData.score}
+              {displayScore}
             </text>
           </g>
         );
@@ -977,7 +998,21 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, a
               <div className="font-display" style={{ fontSize: '1.25rem', lineHeight: 1.1 }}>
                 {r.title}
               </div>
-              <div className="flex gap-1 flex-wrap shrink-0 max-w-[40%] justify-end">
+              <div className="flex gap-1 flex-wrap shrink-0 max-w-[45%] justify-end">
+                {r._reference && (
+                  <span
+                    className="tag-howl"
+                    style={{
+                      fontSize: '0.625rem',
+                      background: 'transparent',
+                      color: 'var(--howl-mute)',
+                      border: '1px dashed var(--howl-mute)',
+                    }}
+                    title="Reference play from the HOWL library, surfaced because the AI did not return brand-specific recommendations for this signal."
+                  >
+                    Reference
+                  </span>
+                )}
                 {(r.addresses || []).map((a) => (
                   <span key={a} className="tag-howl outline" style={{ fontSize: '0.625rem' }}>
                     {a}
@@ -1083,10 +1118,14 @@ Return STRICT JSON only. No prose outside the JSON. No code fences. The schema i
     "MOMENTUM":    { ... }
   },
   "edge": [
-    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice on what this strategic move does and why for THIS brand", "addresses": ["SIGNAL_ID", "SIGNAL_ID"] }
+    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID", "SIGNAL_ID"] }
   ],
   "play": [
-    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice on the creative provocation and why it's earnable for THIS brand", "addresses": ["SIGNAL_ID"] }
+    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. The creative provocation and why it's earnable for THIS brand", "addresses": ["SIGNAL_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] }
   ]
 }
 
@@ -1096,7 +1135,9 @@ Scoring rules:
 - Surface scores can diverge meaningfully within a single signal, e.g., VOLUME may be 75 on WEBSITE but 35 on EARNED. Surface that pattern in the "read".
 - Evidence MUST be specific. Name the page, the campaign, the partner, the language pattern.
 - Voice: HOWL. Short sentences.
-- 3 EDGE recommendations and 3 PLAY recommendations. Each addresses the weakest signals. Each is BRAND-SPECIFIC, invent the move for THIS brand, not generic agency boilerplate.
+- MANDATORY: Always return EXACTLY 3 items in the "edge" array and EXACTLY 3 items in the "play" array. Never return empty arrays. Never return fewer than 3. This applies to every brand regardless of overall score. If no signal is weak, target the 3 LOWEST-scoring signals to push them from Speaking to Howling.
+- Each recommendation must be BRAND-SPECIFIC. Reference the brand's actual evidence (a page, a campaign, a language tic, a missing surface presence) in the rationale. No generic agency boilerplate. No advice that could apply to any brand in the category.
+- EDGE recommendations are strategic. PLAY recommendations are creative provocations.
 - "addresses" arrays use UPPERCASE signal IDs: VOLUME, INTEGRATION, IDENTITY, CANDOR, DESIRE, MOMENTUM.
 - Return ONLY the JSON object. No markdown fences. No preamble.`;
 }
@@ -1207,6 +1248,36 @@ function extractJson(text) {
   throw new Error('Found JSON-like content but could not parse it.');
 }
 
+function zeroSurfaces() {
+  const o = {};
+  SURFACE_IDS.forEach((id) => { o[id] = 0; });
+  return o;
+}
+
+// Pull 3 reference recommendations from the static playbook for the weakest signals.
+// Used as a safety net when Claude returns empty edge/play arrays.
+function fallbackRecommendations(signals, playbook) {
+  // Sort signal IDs by score ascending, take the 3 weakest
+  const ranked = SIGNALS
+    .map((sig) => ({ id: sig.id, score: signals[sig.id]?.score ?? 0 }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3);
+
+  return ranked
+    .map(({ id }) => {
+      const plays = playbook[id] || [];
+      const play = plays[0];
+      if (!play) return null;
+      return {
+        title: play.title,
+        rationale: play.description,
+        addresses: [id],
+        _reference: true,
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeReport(raw) {
   const signals = {};
   let total = 0;
@@ -1227,7 +1298,6 @@ function normalizeReport(raw) {
       surfaceTotal += clamped;
       surfaceCount += 1;
     });
-    // Signal score = mean of surfaces (recompute to ensure consistency)
     const score = surfaceCount > 0 ? Math.round(surfaceTotal / surfaceCount) : 0;
     signals[sig.id] = {
       score,
@@ -1239,20 +1309,23 @@ function normalizeReport(raw) {
     count += 1;
   });
   const overall = count > 0 ? Math.round(total / count) : 0;
+
+  let edge = Array.isArray(raw.edge) ? raw.edge.slice(0, 4) : [];
+  let play = Array.isArray(raw.play) ? raw.play.slice(0, 4) : [];
+
+  // Safety net: never show an empty EDGE or PLAY section. Pull reference plays
+  // from the static playbook keyed on the weakest signals.
+  if (edge.length === 0) edge = fallbackRecommendations(signals, EDGE_PLAYBOOK);
+  if (play.length === 0) play = fallbackRecommendations(signals, PLAY_PLAYBOOK);
+
   return {
     overall_score: overall,
     verdict: raw.verdict || '',
     summary: raw.summary || '',
     signals,
-    edge: Array.isArray(raw.edge) ? raw.edge.slice(0, 4) : [],
-    play: Array.isArray(raw.play) ? raw.play.slice(0, 4) : [],
+    edge,
+    play,
   };
-}
-
-function zeroSurfaces() {
-  const o = {};
-  SURFACE_IDS.forEach((id) => { o[id] = 0; });
-  return o;
 }
 
 // ============================================================================
