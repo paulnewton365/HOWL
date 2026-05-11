@@ -120,6 +120,7 @@ export const CATEGORIES = [
   { id: 'energy',       name: 'Energy / Utilities' },
   { id: 'mobility',     name: 'Mobility / Automotive' },
   { id: 'b2b-services', name: 'B2B / Professional Services' },
+  { id: 'agency',       name: 'Marketing / Agency' },
   { id: 'hospitality',  name: 'Hospitality / Travel' },
   { id: 'real-estate',  name: 'Real Estate / Property' },
   { id: 'industrial',   name: 'Manufacturing / Industrial' },
