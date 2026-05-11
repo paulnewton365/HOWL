@@ -87,7 +87,7 @@ function Header({ onReset, showReset }) {
         background: 'var(--howl-cream)',
       }}
     >
-      <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <HowlLogo height={32} />
           <div
@@ -95,13 +95,13 @@ function Header({ onReset, showReset }) {
             style={{ borderLeft: '1.5px solid var(--howl-ink)' }}
           >
             <div className="howl-stamp" style={{ fontSize: '1.25rem', lineHeight: 1 }}>
-              READ
+              THE READ
             </div>
             <div
               className="text-[10px] tracking-[0.15em] uppercase"
               style={{ color: 'var(--howl-mute)' }}
             >
-              The brand diagnostic
+              A brand diagnostic
             </div>
           </div>
         </div>
@@ -161,14 +161,14 @@ function IntakeForm({ onSubmit, disabled }) {
               className="howl-stamp mb-3"
               style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
             >
-              The READ, v{FRAMEWORK_VERSION}
+              The Read, v{FRAMEWORK_VERSION}
             </div>
             <h1
               className="font-display"
               style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)' }}
             >
               Stop whispering.<br />
-              <span style={{ color: 'var(--howl-coral)' }}>Find out where.</span>
+              <span style={{ color: 'var(--howl-coral)' }}>Learn to howl.</span>
             </h1>
           </div>
 
@@ -520,15 +520,16 @@ function RadialStackedBars({ signals, size = 520 }) {
             </text>
             <text
               x={lx}
-              y={ly + 15}
+              y={ly + 19}
               textAnchor={anchor}
               dominantBaseline="middle"
               style={{
-                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                fontSize: '10px',
-                fontWeight: 600,
-                fill: 'var(--howl-mute)',
-                letterSpacing: '0.04em',
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '18px',
+                fontWeight: 700,
+                fill: 'var(--howl-ink-soft)',
+                letterSpacing: '0.01em',
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
               {sigData.score}
@@ -950,7 +951,7 @@ function ReadReport({ report, onReset, brandMeta }) {
         className="text-center text-[10px] tracking-[0.15em] uppercase mt-12 pt-6"
         style={{ color: 'var(--howl-mute)', borderTop: '1px solid var(--howl-cream-deep)' }}
       >
-        HOWL READ v{FRAMEWORK_VERSION}. A diagnostic from HOWL, by Antenna Group
+        The Read v{FRAMEWORK_VERSION}. A diagnostic from HOWL, by Antenna Group
       </div>
     </main>
   );
@@ -1122,14 +1123,88 @@ function buildUserPrompt({ brandName, websiteUrl, category, businessModel, socia
 // RESPONSE PARSING + NORMALIZATION
 // ============================================================================
 
+// Walks the text forward tracking brace depth (respecting strings and escapes)
+// and returns every top-level {...} substring it finds. Robust against Claude
+// emitting prose after the JSON, intermediate tool-use chatter, or multiple
+// candidate objects in a single response.
+function findJsonObjects(s) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === '\\') {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        objects.push(s.slice(start, i + 1));
+        start = -1;
+      } else if (depth < 0) {
+        // Stray closing brace — reset and continue
+        depth = 0;
+        start = -1;
+      }
+    }
+  }
+  return objects;
+}
+
 function extractJson(text) {
   if (!text) throw new Error('Empty response from Claude.');
-  let cleaned = text.trim();
-  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
-  const first = cleaned.indexOf('{');
-  const last = cleaned.lastIndexOf('}');
-  if (first === -1 || last === -1) throw new Error('No JSON object found in response.');
-  return JSON.parse(cleaned.slice(first, last + 1));
+  let s = text.trim();
+  // Strip surrounding code fences if Claude wrapped the response
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+
+  const candidates = findJsonObjects(s);
+  if (candidates.length === 0) {
+    throw new Error('No JSON object found in response.');
+  }
+
+  // Prefer candidates that match the expected READ schema (have "signals" or
+  // a recognised social handle key). Otherwise fall back to the last parseable
+  // object, which is almost always the actual answer when there's any.
+  let bestKnown = null;
+  let lastParsed = null;
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    let parsed;
+    try {
+      parsed = JSON.parse(candidates[i]);
+    } catch {
+      continue;
+    }
+    if (parsed && typeof parsed === 'object') {
+      if (lastParsed === null) lastParsed = parsed;
+      if ('signals' in parsed || 'linkedin' in parsed || 'instagram' in parsed) {
+        bestKnown = parsed;
+        break;
+      }
+    }
+  }
+  if (bestKnown) return bestKnown;
+  if (lastParsed) return lastParsed;
+  throw new Error('Found JSON-like content but could not parse it.');
 }
 
 function normalizeReport(raw) {
