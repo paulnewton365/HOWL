@@ -9,6 +9,7 @@ import {
   getVerdict,
   FRAMEWORK_VERSION,
 } from './data/rubric';
+import pkg from '../package.json';
 import {
   ArrowRight,
   ArrowLeft,
@@ -23,21 +24,54 @@ import {
   Zap,
 } from 'lucide-react';
 
+// Auto-incremented on every build via scripts/bump-version.cjs.
+const APP_VERSION = pkg.version;
+
+// Official HOWL logo, served from HOWL's CDN. Single source of truth — if the
+// agency updates the mark, every deployed instance picks it up automatically.
+const HOWL_LOGO_URL =
+  'https://cdn.prod.website-files.com/69121686b7e8b054bf157020/691216e49d8ba654eba2919e_howl-logo.svg';
+
 // ============================================================================
-// HOWL LOGO — uses /howl-logo.svg from public/. Replace that file with your
-// official logo for a pixel-perfect mark.
+// HOWL LOGO
 // ============================================================================
 
 function HowlLogo({ height = 38, inverted = false }) {
-  // The SVG file in /public is ink on transparent. Inverting via CSS filter
-  // is the simplest way to render light-on-dark in inverted contexts.
+  // The CDN SVG is ink on transparent. CSS invert flips it for dark contexts.
   const style = inverted ? { filter: 'invert(1)' } : {};
   return (
     <img
-      src="/howl-logo.svg"
+      src={HOWL_LOGO_URL}
       alt="HOWL"
       style={{ height: `${height}px`, display: 'block', ...style }}
     />
+  );
+}
+
+// ============================================================================
+// BUILD BADGE — pinned bottom-right of every screen. Format: 1.1.1
+// ============================================================================
+
+function BuildBadge() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        right: '0.75rem',
+        bottom: '0.75rem',
+        fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+        fontSize: '10px',
+        letterSpacing: '0.08em',
+        color: 'var(--howl-mute)',
+        opacity: 0.55,
+        pointerEvents: 'none',
+        userSelect: 'none',
+        zIndex: 50,
+      }}
+    >
+      {APP_VERSION}
+    </div>
   );
 }
 
@@ -1094,7 +1128,7 @@ export default function App() {
           messages: [{ role: 'user', content: buildUserPrompt(meta) }],
           model: 'claude-sonnet-4-6',
           max_tokens: 10000,
-          temperature: 0.2,
+          temperature: 0,
           useWebSearch: true,
           webSearchMaxUses: 8,
         }),
@@ -1147,6 +1181,7 @@ export default function App() {
         <ReadReport report={report} onReset={reset} brandMeta={brandMeta} />
       )}
       {view === 'error' && <ErrorScreen error={error} onBack={reset} />}
+      <BuildBadge />
     </div>
   );
 }

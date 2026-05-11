@@ -47,14 +47,34 @@ Full framework lives in `src/data/rubric.js`.
 
 ## Replacing the brand assets
 
-The repo ships with placeholder assets so the layout doesn't break. Replace these with the real files at any time — **no code changes needed**, just drop the file in `public/`:
+| Asset | Source | How to swap |
+|-------|--------|-------------|
+| **Logo** | Loaded directly from HOWL's Webflow CDN (`cdn.prod.website-files.com`) | Edit `HOWL_LOGO_URL` at the top of `src/App.jsx` if the canonical URL changes |
+| **Hero image** | `public/howl-hero.jpg` with `howl-hero.svg` as fallback | Drop your photo at `public/howl-hero.jpg` — the app picks it up automatically. If missing, the SVG fallback renders. |
 
-| Placeholder file | Replace with |
-|------------------|---------------|
-| `public/howl-logo.svg` | Your official HOWL logo (SVG preferred for sharpness; keep filename) |
-| `public/howl-hero.jpg` | The face-and-orange-flowers photo from the deck (any size, JPG/PNG) |
+Loading the logo from HOWL's CDN means a logo update on the agency site flows through to every deployed instance without redeploy. If you want the logo bundled into the build instead (offline-safe), save the SVG locally to `public/howl-logo.svg` and change `HOWL_LOGO_URL` to `/howl-logo.svg`.
 
-The hero image has a graceful fallback: if `howl-hero.jpg` is missing, the app renders `howl-hero.svg` (a black canvas with the orange-flower motif) so the layout always works.
+---
+
+## Versioning
+
+The app version is shown bottom-right of every screen (e.g. `1.1.1`).
+
+- Format: `MAJOR.MINOR.PATCH`
+- **PATCH** auto-increments on every build via `scripts/bump-version.cjs`, which runs as a `prebuild` hook. This happens both locally on `npm run build` and on every Vercel deploy.
+- **MAJOR** and **MINOR** are manual — bump them in `package.json` when shipping a meaningful release.
+- The framework version (`FRAMEWORK_VERSION` in `src/data/rubric.js`) is separate. That tracks rubric changes (signals, surfaces, scoring) and is bumped manually when you change the diagnostic itself.
+
+A note on Vercel CI: each Vercel build runs `prebuild`, which bumps the patch in that build's working copy of `package.json`. The change is **not** committed back to the repo — so the version you see on a Vercel preview reflects that deploy's build, not the latest committed version. If you want monotonic versioning across deploys, commit the bumped `package.json` from your local builds before pushing.
+
+---
+
+## Determinism
+
+`temperature` is set to `0` in `src/App.jsx` so re-running the READ on the same brand produces stable scores and copy. Two caveats:
+
+- The model can still vary slightly between runs because `web_search` results change as the web changes. Same brand, different week, different evidence.
+- If you want to lock results in time for a specific report, copy the READ (button at the bottom of the report) and archive it.
 
 ---
 
