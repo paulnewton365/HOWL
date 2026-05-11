@@ -27,6 +27,7 @@ import {
   fetchReadById,
   deleteRead,
   supabaseEnabled,
+  supabaseStatus,
   supabaseDebug,
 } from './lib/supabase';
 import {
@@ -45,6 +46,8 @@ import {
   LogOut,
   Trash2,
   Clock,
+  Search,
+  X,
 } from 'lucide-react';
 
 // Auto-incremented on every build via scripts/bump-version.cjs.
@@ -226,18 +229,26 @@ function VerdictStamp({ score, size = 'sm' }) {
 // PREVIOUS READS — list of past reads from Supabase. Shown on intake view.
 // ============================================================================
 
-function PreviousReads({ onLoad, onRerun }) {
+function HistoryView({ onLoad, onRerun, onReset }) {
   const [reads, setReads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
+  // Filter + sort state
+  const [search, setSearch] = useState('');
+  const [verdictFilter, setVerdictFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [sort, setSort] = useState('date-desc');
+
   useEffect(() => {
     if (!supabaseEnabled) {
       setLoading(false);
+      if (supabaseStatus === 'wrong-key-type') setError({ reason: 'wrong-key-type' });
+      else if (supabaseStatus === 'invalid-key') setError({ reason: 'invalid-key' });
       return;
     }
-    fetchRecentReads().then((result) => {
+    fetchRecentReads(200).then((result) => {
       if (!result.ok) {
         setError({ reason: result.reason, message: result.message });
       } else {
@@ -247,10 +258,6 @@ function PreviousReads({ onLoad, onRerun }) {
     });
   }, []);
 
-  // If Supabase isn't configured at all, render nothing. The Previous Reads
-  // feature is optional, so don't nag users who never set it up.
-  if (!supabaseEnabled) return null;
-
   async function handleDelete(id) {
     setBusyId(id);
     const ok = await deleteRead(id);
@@ -258,18 +265,60 @@ function PreviousReads({ onLoad, onRerun }) {
     setBusyId(null);
   }
 
+  // Apply filters client-side. Fast for the small numbers we'll have.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = reads.filter((r) => {
+      if (q && !r.brand_name.toLowerCase().includes(q)) return false;
+      if (verdictFilter && r.verdict !== verdictFilter) return false;
+      if (categoryFilter && r.category !== categoryFilter) return false;
+      return true;
+    });
+    switch (sort) {
+      case 'date-asc':
+        out = [...out].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        break;
+      case 'score-desc':
+        out = [...out].sort((a, b) => (b.overall_score ?? 0) - (a.overall_score ?? 0));
+        break;
+      case 'score-asc':
+        out = [...out].sort((a, b) => (a.overall_score ?? 0) - (b.overall_score ?? 0));
+        break;
+      case 'brand-asc':
+        out = [...out].sort((a, b) => a.brand_name.localeCompare(b.brand_name));
+        break;
+      default: // 'date-desc'
+        out = [...out].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+    return out;
+  }, [reads, search, verdictFilter, categoryFilter, sort]);
+
+  const anyFilterActive = !!(search || verdictFilter || categoryFilter);
+
+  function clearFilters() {
+    setSearch('');
+    setVerdictFilter('');
+    setCategoryFilter('');
+  }
+
   return (
-    <section
-      className="mt-16 pt-10"
-      style={{ borderTop: '1px solid var(--howl-cream-deep)' }}
-    >
-      <div className="flex items-center gap-3 mb-5">
-        <Clock size={18} style={{ color: 'var(--howl-coral)' }} />
-        <h2 className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
-          Previous Reads
-        </h2>
+    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+      <div className="mb-8">
+        <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
+          The archive
+        </div>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <h1 className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1 }}>
+            Previous Reads.
+          </h1>
+          <button onClick={onReset} className="btn-howl">
+            <RefreshCw size={14} />
+            Run a new READ
+          </button>
+        </div>
       </div>
 
+      {/* Loading */}
       {loading && (
         <div
           className="card-howl p-5 flex items-center gap-3"
@@ -280,9 +329,10 @@ function PreviousReads({ onLoad, onRerun }) {
         </div>
       )}
 
+      {/* Error */}
       {!loading && error && (
         <div
-          className="card-howl p-5"
+          className="card-howl p-5 mb-6"
           style={{ borderColor: 'var(--howl-weak)', background: 'rgba(183, 53, 37, 0.04)' }}
         >
           <div className="flex items-start gap-2 mb-2">
@@ -302,96 +352,203 @@ function PreviousReads({ onLoad, onRerun }) {
         </div>
       )}
 
+      {/* Empty */}
       {!loading && !error && reads.length === 0 && (
-        <div className="card-howl p-5" style={{ background: 'var(--howl-bone)' }}>
-          <p className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>
-            No reads recorded yet. Run your first one above and it will appear here.
+        <div className="card-howl p-7" style={{ background: 'var(--howl-bone)' }}>
+          <p className="text-base mb-2" style={{ color: 'var(--howl-ink-soft)' }}>
+            No reads recorded yet.
           </p>
-          <p className="text-[11px] mt-2" style={{ color: 'var(--howl-mute)' }}>
-            Connected to <span className="font-mono">{supabaseDebug.urlPreview}</span>
+          <p className="text-sm" style={{ color: 'var(--howl-mute)' }}>
+            Click <strong>Run a new READ</strong> above to start. Saved reads appear here so you can
+            revisit, re-run, or compare them later.
           </p>
         </div>
       )}
 
+      {/* Filter bar + list */}
       {!loading && !error && reads.length > 0 && (
-        <div className="space-y-2">
-          {reads.map((r) => {
-            const date = new Date(r.created_at);
-            const dateStr = date.toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            });
-            return (
-              <div
-                key={r.id}
-                className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
-                style={{ cursor: 'pointer' }}
-                onClick={() => onLoad(r)}
-              >
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="font-display truncate"
-                    style={{ fontSize: '1.0625rem', lineHeight: 1.1 }}
-                  >
-                    {r.brand_name}
-                  </div>
-                  <div
-                    className="text-[11px] tracking-wide uppercase mt-1"
-                    style={{ color: 'var(--howl-mute)' }}
-                  >
-                    {dateStr}
-                  </div>
-                </div>
-                <div
-                  className="font-display tabular-nums shrink-0"
-                  style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
-                >
-                  {r.overall_score}
-                </div>
-                <div className="shrink-0">
-                  <VerdictStamp score={r.overall_score} />
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRerun(r);
-                  }}
-                  className="btn-ghost shrink-0"
-                  title="Run this READ again"
-                  style={{ padding: '6px 10px' }}
-                >
-                  <RefreshCw size={14} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(r.id);
-                  }}
-                  disabled={busyId === r.id}
-                  title="Delete"
-                  className="shrink-0"
+        <>
+          <div
+            className="card-howl p-4 mb-5"
+            style={{ background: 'var(--howl-bone)' }}
+          >
+            <div className="grid md:grid-cols-12 gap-3 items-center">
+              {/* Search */}
+              <div className="md:col-span-5 relative">
+                <Search
+                  size={14}
                   style={{
-                    padding: '6px 8px',
+                    position: 'absolute',
+                    left: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
                     color: 'var(--howl-mute)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
+                    pointerEvents: 'none',
                   }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search by brand"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="input-howl"
+                  style={{ paddingLeft: '36px' }}
+                />
+              </div>
+
+              {/* Verdict filter */}
+              <div className="md:col-span-2">
+                <select
+                  value={verdictFilter}
+                  onChange={(e) => setVerdictFilter(e.target.value)}
+                  className="input-howl"
                 >
-                  {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <option value="">All verdicts</option>
+                  {VERDICT_TIERS.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category filter */}
+              <div className="md:col-span-3">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="input-howl"
+                >
+                  <option value="">All categories</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort */}
+              <div className="md:col-span-2">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="input-howl"
+                >
+                  <option value="date-desc">Newest</option>
+                  <option value="date-asc">Oldest</option>
+                  <option value="score-desc">Highest score</option>
+                  <option value="score-asc">Lowest score</option>
+                  <option value="brand-asc">Brand A→Z</option>
+                </select>
+              </div>
+            </div>
+
+            {anyFilterActive && (
+              <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--howl-cream-deep)' }}>
+                <span className="text-xs" style={{ color: 'var(--howl-mute)' }}>
+                  Showing {filtered.length} of {reads.length}
+                </span>
+                <button
+                  onClick={clearFilters}
+                  className="btn-ghost"
+                  style={{ padding: '4px 10px', fontSize: '0.6875rem' }}
+                >
+                  <X size={12} />
+                  Clear filters
                 </button>
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="card-howl p-7 text-center" style={{ background: 'var(--howl-bone)' }}>
+              <p className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>
+                No reads match those filters.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((r) => {
+                const date = new Date(r.created_at);
+                const dateStr = date.toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                });
+                const category = CATEGORIES.find((c) => c.id === r.category)?.name;
+                return (
+                  <div
+                    key={r.id}
+                    className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => onLoad(r)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="font-display truncate"
+                        style={{ fontSize: '1.0625rem', lineHeight: 1.1 }}
+                      >
+                        {r.brand_name}
+                      </div>
+                      <div
+                        className="text-[11px] tracking-wide uppercase mt-1"
+                        style={{ color: 'var(--howl-mute)' }}
+                      >
+                        {dateStr}{category ? ` · ${category}` : ''}
+                      </div>
+                    </div>
+                    <div
+                      className="font-display tabular-nums shrink-0"
+                      style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
+                    >
+                      {r.overall_score}
+                    </div>
+                    <div className="shrink-0">
+                      <VerdictStamp score={r.overall_score} />
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRerun(r);
+                      }}
+                      className="btn-ghost shrink-0"
+                      title="Run this READ again"
+                      style={{ padding: '6px 10px' }}
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(r.id);
+                      }}
+                      disabled={busyId === r.id}
+                      title="Delete"
+                      className="shrink-0"
+                      style={{
+                        padding: '6px 8px',
+                        color: 'var(--howl-mute)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
-    </section>
+    </main>
   );
 }
 
 function supabaseConnectionHelp(reason) {
   switch (reason) {
+    case 'wrong-key-type':
+      return 'You pasted the "service_role" (secret) key into VITE_SUPABASE_ANON_KEY. Supabase blocks secret keys in the browser as a safety feature. Go to Supabase Settings → API, copy the "anon" "public" key instead, replace the value on Vercel, and redeploy.';
+    case 'invalid-key':
+      return 'VITE_SUPABASE_ANON_KEY does not parse as a valid Supabase JWT. Double-check you copied the full key. It is a single long string starting with "eyJ" and contains exactly two periods.';
     case 'table-missing':
       return 'Supabase is reachable but the "reads" table does not exist. Run the SQL from supabase-schema.sql in your Supabase SQL Editor.';
     case 'rls-blocked':
@@ -405,7 +562,7 @@ function supabaseConnectionHelp(reason) {
   }
 }
 
-function Header({ onReset, showReset, onSignOut }) {
+function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
   return (
     <header
       style={{
@@ -432,6 +589,12 @@ function Header({ onReset, showReset, onSignOut }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {showHistory && (
+            <button onClick={onHistory} className="btn-ghost">
+              <Clock size={14} />
+              Previous Reads
+            </button>
+          )}
           {showReset && (
             <button onClick={onReset} className="btn-ghost">
               <RefreshCw size={14} />
@@ -491,9 +654,9 @@ function IntakeForm({ onSubmit, disabled }) {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
-      <div className="grid lg:grid-cols-5 gap-8 items-start">
+      <div className="grid lg:grid-cols-5 gap-8 lg:items-stretch">
         {/* Left: hero image + headline */}
-        <div className="lg:col-span-2 lg:sticky lg:top-8">
+        <div className="lg:col-span-2 flex flex-col">
           <div className="mb-5">
             <div
               className="howl-stamp mb-3"
@@ -511,8 +674,8 @@ function IntakeForm({ onSubmit, disabled }) {
           </div>
 
           <div
-            className="card-howl overflow-hidden"
-            style={{ aspectRatio: '4 / 5', borderColor: 'var(--howl-ink)' }}
+            className="card-howl overflow-hidden flex-1"
+            style={{ borderColor: 'var(--howl-ink)', minHeight: 0 }}
           >
             {!heroError ? (
               <img
@@ -529,15 +692,6 @@ function IntakeForm({ onSubmit, disabled }) {
               />
             )}
           </div>
-
-          <p
-            className="text-base mt-5"
-            style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}
-          >
-            A diagnostic from HOWL that reads how loudly, and how convincingly,
-            your brand is carrying its story across <strong>website, social,
-            reputation, and earned</strong>. Six signals. Four surfaces. One verdict.
-          </p>
         </div>
 
         {/* Right: the form */}
@@ -696,7 +850,9 @@ function RunningRead({ brandName, stage }) {
         className="howl-stamp mb-3"
         style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
       >
-        {stage === 'discovery'
+        {stage === 'load'
+          ? 'Loading saved read'
+          : stage === 'discovery'
           ? 'Sampling AI and social presence'
           : 'Running the READ'}
       </div>
@@ -2152,7 +2308,7 @@ export default function App() {
     if (!row?.id) return;
     setError('');
     setView('running');
-    setStage('main');
+    setStage('load');
     setBrandMeta(row.brand_meta || { brandName: row.brand_name });
     const full = await fetchReadById(row.id);
     if (!full || !full.report) {
@@ -2178,16 +2334,24 @@ export default function App() {
     window.location.reload();
   }
 
+  const historyAvailable = supabaseStatus !== 'not-configured';
+
   return (
     <PasswordGate>
-      <Header onReset={reset} showReset={view !== 'intake'} onSignOut={signOut} />
-      {view === 'intake' && (
-        <>
-          <IntakeForm onSubmit={runRead} disabled={submitting} />
-          <div className="mx-auto max-w-6xl px-6 pb-16">
-            <PreviousReads onLoad={loadFromHistory} onRerun={rerunFromHistory} />
-          </div>
-        </>
+      <Header
+        onReset={reset}
+        showReset={view !== 'intake'}
+        onSignOut={signOut}
+        onHistory={() => setView('history')}
+        showHistory={historyAvailable && view !== 'history'}
+      />
+      {view === 'intake' && <IntakeForm onSubmit={runRead} disabled={submitting} />}
+      {view === 'history' && (
+        <HistoryView
+          onLoad={loadFromHistory}
+          onRerun={rerunFromHistory}
+          onReset={reset}
+        />
       )}
       {view === 'running' && (
         <RunningRead brandName={brandMeta?.brandName || ''} stage={stage} />

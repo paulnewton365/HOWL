@@ -9,25 +9,58 @@ import { getVerdict } from '../data/rubric';
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Quick init diagnostic in the console so the user can confirm credentials
-// landed without opening the network tab.
-if (typeof window !== 'undefined') {
-  if (url && key) {
-    console.info('[HOWL READ] Supabase configured:', url);
-  } else {
-    console.info('[HOWL READ] Supabase NOT configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Previous Reads.');
+// Parse the role out of a Supabase JWT key. Used to catch the very common
+// mistake of pasting the `service_role` secret key into the browser env var.
+function inspectKey(jwt) {
+  try {
+    const parts = jwt.split('.');
+    if (parts.length !== 3) return { valid: false };
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64));
+    return { valid: true, role: payload.role || null };
+  } catch {
+    return { valid: false };
   }
 }
 
-export const supabase = url && key ? createClient(url, key) : null;
+const keyInfo = key ? inspectKey(key) : { valid: false };
+const keyIsServiceRole = keyInfo.valid && keyInfo.role === 'service_role';
+const keyIsAnon = keyInfo.valid && keyInfo.role === 'anon';
+
+// Init diagnostic in the console so credentials issues are obvious without
+// hunting through the network tab.
+if (typeof window !== 'undefined') {
+  if (!url || !key) {
+    console.info('[HOWL READ] Supabase NOT configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Previous Reads.');
+  } else if (keyIsServiceRole) {
+    console.error('[HOWL READ] VITE_SUPABASE_ANON_KEY is a service_role (secret) key. Use the anon (public) key instead. Supabase blocks secret keys in browsers as a safety feature.');
+  } else if (!keyIsAnon) {
+    console.warn('[HOWL READ] VITE_SUPABASE_ANON_KEY does not parse as a Supabase JWT. Double-check the value.');
+  } else {
+    console.info('[HOWL READ] Supabase configured:', url);
+  }
+}
+
+// Only initialize the client if we have credentials AND the key is the right
+// kind. Otherwise the app falls back to "no history" mode and the UI surfaces
+// the specific reason.
+export const supabase =
+  url && key && !keyIsServiceRole ? createClient(url, key) : null;
 export const supabaseEnabled = !!supabase;
 
-// Surface the env-var values the build was given (for displaying in error
-// banners). Truncated so we don't leak the whole key into the DOM.
+// Status for the UI to render an actionable empty-state.
+export const supabaseStatus = (() => {
+  if (!url || !key) return 'not-configured';
+  if (keyIsServiceRole) return 'wrong-key-type';
+  if (!keyIsAnon) return 'invalid-key';
+  return 'ready';
+})();
+
 export const supabaseDebug = {
   urlPresent: !!url,
   keyPresent: !!key,
   urlPreview: url ? url.replace(/^https?:\/\//, '').slice(0, 40) : null,
+  keyRole: keyInfo.role || null,
 };
 
 // Persist a completed READ.
@@ -98,6 +131,9 @@ export async function deleteRead(id) {
 function classifyError(error) {
   const code = error?.code || '';
   const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('secret api key') || msg.includes('forbidden use of secret')) {
+    return 'wrong-key-type';
+  }
   if (code === '42P01' || msg.includes('relation') && msg.includes('does not exist')) {
     return 'table-missing';
   }
