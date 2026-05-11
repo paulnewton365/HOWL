@@ -127,7 +127,6 @@ function IntakeForm({ onSubmit, disabled }) {
   const [category, setCategory] = useState('tech');
   const [businessModel, setBusinessModel] = useState('b2c');
   const [socials, setSocials] = useState('');
-  const [aiSummary, setAiSummary] = useState('');
   const [context, setContext] = useState('');
   const [error, setError] = useState('');
   const [heroError, setHeroError] = useState(false);
@@ -147,7 +146,6 @@ function IntakeForm({ onSubmit, disabled }) {
         category,
         businessModel,
         socials: socials.trim(),
-        aiSummary: aiSummary.trim(),
         context: context.trim(),
       });
     } catch {
@@ -290,22 +288,6 @@ function IntakeForm({ onSubmit, disabled }) {
           </div>
 
           <div>
-            <label className="label-howl" htmlFor="ai">
-              How AI engines describe the brand
-            </label>
-            <textarea
-              id="ai"
-              value={aiSummary}
-              onChange={(e) => setAiSummary(e.target.value)}
-              placeholder='Paste what Claude, ChatGPT, Gemini, or Perplexity say when asked "What is [BRAND]?" — this anchors the REPUTATION read.'
-              className="input-howl"
-              rows={3}
-              disabled={disabled}
-              style={{ resize: 'vertical', fontFamily: 'inherit' }}
-            />
-          </div>
-
-          <div>
             <label className="label-howl" htmlFor="ctx">
               Anything else we should know
             </label>
@@ -351,7 +333,7 @@ function IntakeForm({ onSubmit, disabled }) {
           </button>
 
           <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
-            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It evaluates messaging signals, not internal performance.
+            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It automatically samples how Claude describes the brand to anchor the REPUTATION read. It evaluates messaging signals, not internal performance.
           </p>
         </form>
       </div>
@@ -363,14 +345,15 @@ function IntakeForm({ onSubmit, disabled }) {
 // RUNNING — loading state
 // ============================================================================
 
-function RunningRead({ brandName }) {
+function RunningRead({ brandName, stage }) {
   const lines = useMemo(
     () => [
+      'Asking Claude what it knows about the brand.',
       'Reading the homepage.',
       'Listening for category cliché.',
       'Scanning the social feeds.',
-      'Asking what the AI engines say.',
-      'Checking earned media of the last twelve months.',
+      'Checking what third-party sources say.',
+      'Looking at earned media from the last twelve months.',
       'Counting scars in the latest claims.',
       'Watching for guilt vs. invitation in the copy.',
       'Scoring the four surfaces.',
@@ -390,7 +373,7 @@ function RunningRead({ brandName }) {
         className="howl-stamp mb-3"
         style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
       >
-        Running the READ
+        {stage === 'ai-sample' ? 'Sampling AI representation' : 'Running the READ'}
       </div>
       <h2 className="font-display mb-8" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)' }}>
         {brandName}
@@ -633,6 +616,11 @@ function ReadReport({ report, onReset, brandMeta }) {
     lines.push('');
     lines.push('— PLAY —');
     (report.play || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
+    if (report.ai_description) {
+      lines.push('');
+      lines.push('— WHAT CLAUDE SAYS ABOUT YOU (unprompted, no web search) —');
+      lines.push(report.ai_description);
+    }
     navigator.clipboard.writeText(lines.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -838,6 +826,42 @@ function ReadReport({ report, onReset, brandMeta }) {
         accent="var(--howl-coral)"
       />
 
+      {report.ai_description && (
+        <div className="mb-10">
+          <div
+            className="howl-stamp mb-3"
+            style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
+          >
+            What Claude says about you
+          </div>
+          <div
+            className="card-howl p-6"
+            style={{
+              borderLeftWidth: '4px',
+              borderLeftColor: 'var(--howl-coral)',
+              background: 'var(--howl-bone)',
+            }}
+          >
+            <p
+              className="text-base"
+              style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.6 }}
+            >
+              {report.ai_description}
+            </p>
+            <p
+              className="text-[11px] mt-4 pt-3"
+              style={{
+                color: 'var(--howl-mute)',
+                borderTop: '1px solid var(--howl-cream-deep)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Sampled from Claude with no web search — this is the brand's footprint in AI training data. If this reads thin, vague, or wrong, that is a REPUTATION finding in its own right.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 justify-center pt-6">
         <button onClick={copyText} className="btn-ghost">
           {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy the READ</>}
@@ -1016,7 +1040,7 @@ function buildUserPrompt({ brandName, websiteUrl, category, businessModel, socia
     `Business model: ${bm}`,
   ];
   if (socials) lines.push(`Social handles: ${socials}`);
-  if (aiSummary) lines.push(`\nHow AI engines describe the brand (user-provided):\n${aiSummary}`);
+  if (aiSummary) lines.push(`\nUnprompted AI representation (Claude's description of the brand from training data, captured at READ time without web search):\n${aiSummary}`);
   if (context) lines.push(`\nAdditional context the user provided:\n${context}`);
   lines.push(
     `\nRun the READ. Use web_search to look at the brand's website, social presence, third-party reputation surfaces (Trustpilot, Glassdoor, Reddit, AI engine descriptions), and earned media from the last 12 months. Then return the JSON.`
@@ -1087,6 +1111,44 @@ function zeroSurfaces() {
 }
 
 // ============================================================================
+// AI REPRESENTATION SAMPLE
+// Quick unprompted Claude call (no web search) to capture how the model
+// describes the brand from training data alone. Feeds the REPUTATION read.
+// ============================================================================
+
+async function fetchAiDescription(brandName, websiteUrl) {
+  const prompt = `What is "${brandName}" (${websiteUrl})? Give a concise, factual 3-5 sentence description as if responding to a user asking you about this brand. Cover what they do, who their audience is, and what they're known for.
+
+If you do not have reliable information about this brand, say so explicitly — e.g. "I don't have reliable information about [BRAND]." Do not invent or guess. Do not search the web. Respond based only on what you know.`;
+
+  try {
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'claude-sonnet-4-6',
+        max_tokens: 800,
+        temperature: 0,
+        useWebSearch: false,
+      }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return (
+      data.text ||
+      (data.content || [])
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('\n') ||
+      ''
+    );
+  } catch {
+    return ''; // graceful degrade — main READ continues without it
+  }
+}
+
+// ============================================================================
 // APP
 // ============================================================================
 
@@ -1094,6 +1156,7 @@ const STORAGE_KEY = 'howl-read:last';
 
 export default function App() {
   const [view, setView] = useState('intake');
+  const [stage, setStage] = useState(null); // 'ai-sample' | 'main' | null
   const [brandMeta, setBrandMeta] = useState(null);
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
@@ -1117,15 +1180,22 @@ export default function App() {
     setError('');
     setSubmitting(true);
     setBrandMeta(meta);
+    setStage('ai-sample');
     setView('running');
 
     try {
+      // Step 1 — unprompted Claude call. Captures training-data view.
+      const aiDescription = await fetchAiDescription(meta.brandName, meta.websiteUrl);
+      const enrichedMeta = { ...meta, aiSummary: aiDescription };
+
+      // Step 2 — main READ with web search, including the AI description as context.
+      setStage('main');
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system: buildSystemPrompt(),
-          messages: [{ role: 'user', content: buildUserPrompt(meta) }],
+          messages: [{ role: 'user', content: buildUserPrompt(enrichedMeta) }],
           model: 'claude-sonnet-4-6',
           max_tokens: 10000,
           temperature: 0,
@@ -1149,10 +1219,15 @@ export default function App() {
 
       const raw = extractJson(text);
       const normalized = normalizeReport(raw);
+      // Preserve the sampled AI description on the report so it shows in evidence/exports.
+      normalized.ai_description = aiDescription;
 
       setReport(normalized);
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ brandMeta: meta, report: normalized }));
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ brandMeta: meta, report: normalized })
+        );
       } catch { /* ignore */ }
       setView('report');
     } catch (e) {
@@ -1160,6 +1235,7 @@ export default function App() {
       setError(e.message || 'Something went wrong running the READ.');
       setView('error');
     } finally {
+      setStage(null);
       setSubmitting(false);
     }
   }
@@ -1176,7 +1252,9 @@ export default function App() {
     <div>
       <Header onReset={reset} showReset={view !== 'intake'} />
       {view === 'intake' && <IntakeForm onSubmit={runRead} disabled={submitting} />}
-      {view === 'running' && <RunningRead brandName={brandMeta?.brandName || ''} />}
+      {view === 'running' && (
+        <RunningRead brandName={brandMeta?.brandName || ''} stage={stage} />
+      )}
       {view === 'report' && report && brandMeta && (
         <ReadReport report={report} onReset={reset} brandMeta={brandMeta} />
       )}
