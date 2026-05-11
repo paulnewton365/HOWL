@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ============================================================
+   HOWL DESIGN TOKENS
+   Cream + black + coral. Sharp corners. Bold ink. No softness.
+   ============================================================ */
+
+:root {
+  --howl-cream:        #F2EFE7;   /* page background */
+  --howl-cream-deep:   #E8E3D6;   /* card backgrounds, dividers */
+  --howl-ink:          #0A0A0A;   /* primary text + bold ink */
+  --howl-ink-soft:     #2B2B2B;   /* secondary text */
+  --howl-mute:         #6B6B6B;   /* tertiary/labels */
+  --howl-coral:        #F47245;   /* accent — the HOWL orange */
+  --howl-coral-deep:   #D85726;   /* coral hover/press */
+  --howl-bone:         #FAF7EF;   /* near-white surfaces */
+  --howl-night:        #000000;   /* full black for inverse blocks */
+
+  /* semantic */
+  --howl-strong:       #1F7A4D;   /* score > 70 */
+  --howl-mid:          #C28A1F;   /* score 40-69 */
+  --howl-weak:         #B73525;   /* score 0-39 */
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: var(--howl-cream);
+  color: var(--howl-ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Display type — used for HOWL-voice headlines and verdicts.
+   Anton gives the condensed grotesque weight that matches the deck. */
+.font-display {
+  font-family: 'Anton', 'Inter', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+/* HOWL voice — bold sentence stamps. */
+.howl-stamp {
+  font-family: 'Anton', 'Inter', sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.0;
+}
+
+/* Sharp button — the HOWL CTA */
+.btn-howl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.75rem;
+  background: var(--howl-ink);
+  color: var(--howl-bone);
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 2px solid var(--howl-ink);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.05s ease;
+}
+.btn-howl:hover {
+  background: var(--howl-coral);
+  border-color: var(--howl-coral);
+  color: var(--howl-ink);
+}
+.btn-howl:active { transform: translateY(1px); }
+.btn-howl:disabled {
+  background: var(--howl-mute);
+  border-color: var(--howl-mute);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  color: var(--howl-ink);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 2px solid var(--howl-ink);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-ghost:hover {
+  background: var(--howl-ink);
+  color: var(--howl-bone);
+}
+
+/* Inputs — flat, bold-bordered */
+.input-howl {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--howl-bone);
+  border: 1.5px solid var(--howl-ink);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--howl-ink);
+  transition: border-color 0.15s ease;
+}
+.input-howl:focus {
+  outline: none;
+  border-color: var(--howl-coral);
+  box-shadow: 0 0 0 3px rgba(244, 114, 69, 0.18);
+}
+.input-howl::placeholder {
+  color: var(--howl-mute);
+}
+
+/* Card — flat, no radius, ink border */
+.card-howl {
+  background: var(--howl-bone);
+  border: 1.5px solid var(--howl-ink);
+  border-radius: 0;
+}
+
+/* Label */
+.label-howl {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--howl-ink);
+  margin-bottom: 0.5rem;
+}
+
+/* Tag pills */
+.tag-howl {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: var(--howl-ink);
+  color: var(--howl-bone);
+  border-radius: 0;
+}
+.tag-howl.coral {
+  background: var(--howl-coral);
+  color: var(--howl-ink);
+}
+.tag-howl.outline {
+  background: transparent;
+  color: var(--howl-ink);
+  border: 1px solid var(--howl-ink);
+}
+
+/* Loader */
+@keyframes howl-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.howl-pulse { animation: howl-pulse 1.2s ease-in-out infinite; }
+
+@keyframes howl-fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.howl-fadein { animation: howl-fadein 0.4s ease-out forwards; }
+
+/* Selection */
+::selection { background: var(--howl-coral); color: var(--howl-ink); }
