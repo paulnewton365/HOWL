@@ -1147,10 +1147,10 @@ function RunningRead({ brandName, stage }) {
 // Outer edge = sum of all surface scores. Inner band labels follow segment angle.
 // ============================================================================
 
-// Radial chart: one bar per signal, going from center outward.
-// Filled portion = the signal's score (colored by verdict tier).
-// Empty portion = the gap to 100, drawn as a thin outline so the user
-// sees how much room remains for the brand to grow louder.
+// Radial chart: one spoke per signal. Each spoke stacks 4 surface segments
+// (web, social, reputation, earned) outward from the center, with visible
+// radial gaps between them. After the last surface, a pale outlined segment
+// shows the room to grow up to a full howl across all surfaces.
 function RadialScoreBars({ signals, size = 520 }) {
   // Animate the fill (and the displayed number) in on mount
   const [progress, setProgress] = useState(0);
@@ -1178,6 +1178,15 @@ function RadialScoreBars({ signals, size = 520 }) {
   const segAngle = 360 / SIGNALS.length;
   const gapDeg = 6;
   const arcDeg = segAngle - gapDeg;
+
+  // Radial spacing math: 4 surfaces stack outward, max possible total = 400
+  // (4 surfaces × 100). When all surfaces are at 100, the surfaces + internal
+  // gaps + final gap fill the spoke to the outer radius exactly.
+  const radialGap = 3;
+  const gapBeforeOutline = 4; // a slightly larger gap before "room to grow"
+  const totalGaps = 3 * radialGap + gapBeforeOutline; // 3 between surfaces + 1 to outline
+  const spokeRange = outerR - innerR - totalGaps;
+  const scale = spokeRange / 400; // surface score × scale = radial length
 
   function polar(angleDeg, r) {
     const a = (angleDeg - 90) * (Math.PI / 180);
@@ -1212,35 +1221,13 @@ function RadialScoreBars({ signals, size = 520 }) {
     return 'var(--howl-weak)';
   }
 
-  // Reference rings at 25/50/75/100 of the 0-100 score range
-  const rings = [0.25, 0.5, 0.75, 1.0].map((p) => ({
-    r: innerR + (outerR - innerR) * p,
-    outermost: p === 1.0,
-    label: Math.round(p * 100),
-  }));
-
   return (
     <svg
       viewBox={`${-padX} 0 ${size + 2 * padX} ${size}`}
       width="100%"
       style={{ maxWidth: size + 2 * padX, height: 'auto', display: 'block', margin: '0 auto' }}
-      aria-label="Radial chart of HOWL READ signal scores. Filled portion is the score, outlined portion is the gap to 100."
+      aria-label="Radial chart of HOWL READ scores. Each spoke is a signal with four stacked surface scores and a pale segment showing room to grow."
     >
-      {/* Reference rings */}
-      {rings.map((ring) => (
-        <circle
-          key={ring.r}
-          cx={cx}
-          cy={cy}
-          r={ring.r}
-          fill="none"
-          stroke="var(--howl-ink)"
-          strokeOpacity={ring.outermost ? 0.28 : 0.08}
-          strokeWidth={1}
-          strokeDasharray={ring.outermost ? '0' : '2 4'}
-        />
-      ))}
-
       {/* Inner cream hole */}
       <circle
         cx={cx}
@@ -1251,7 +1238,7 @@ function RadialScoreBars({ signals, size = 520 }) {
         strokeOpacity={0.25}
       />
 
-      {/* Each signal: a filled segment + an outlined remainder */}
+      {/* Each signal: stacked surface segments + outline gap segment */}
       {SIGNALS.map((sig, i) => {
         const startAngle = i * segAngle + gapDeg / 2;
         const endAngle = startAngle + arcDeg;
@@ -1259,53 +1246,52 @@ function RadialScoreBars({ signals, size = 520 }) {
         const sigData = signals[sig.id];
         if (!sigData) return null;
 
-        const score = sigData.score || 0;
-        const animatedScore = score * progress;
-        const fillR = innerR + (outerR - innerR) * (animatedScore / 100);
-        const fillColor = tierColor(score);
+        // Build stacked surface segments
+        let cursorR = innerR;
+        const segments = SURFACES.map((surface, idx) => {
+          const surfaceScore = sigData.by_surface?.[surface.id] ?? 0;
+          const segLength = surfaceScore * progress * scale;
+          const from = cursorR;
+          const to = cursorR + segLength;
+          cursorR = to;
+          if (idx < SURFACES.length - 1) cursorR += radialGap;
+          return { surface, surfaceScore, from, to };
+        });
+
+        // The pale "room to grow" segment starts after a slightly larger gap.
+        const outlineStart = cursorR + gapBeforeOutline;
+        const outlineEnd = outerR;
 
         const anchor = labelAnchor(midAngle);
         const [lx, ly] = polar(midAngle, labelR);
-        const displayScore = Math.round(animatedScore);
+        const displayScore = Math.round((sigData.score || 0) * progress);
 
         return (
           <g key={sig.id}>
-            {/* "Room to grow": outlined wedge from current score to 100 */}
-            <path
-              d={annularSectorPath(startAngle, endAngle, innerR, outerR)}
-              fill="var(--howl-bone)"
-              fillOpacity={0.6}
-              stroke="var(--howl-ink)"
-              strokeOpacity={0.18}
-              strokeWidth={1}
-            />
-
-            {/* Filled portion = signal's score */}
-            {fillR > innerR + 0.5 && (
-              <path
-                d={annularSectorPath(startAngle, endAngle, innerR, fillR)}
-                fill={fillColor}
-                stroke="var(--howl-cream)"
-                strokeWidth={1.5}
-              />
+            {/* Filled surface segments */}
+            {segments.map(({ surface, from, to }) =>
+              to > from + 0.5 ? (
+                <path
+                  key={surface.id}
+                  d={annularSectorPath(startAngle, endAngle, from, to)}
+                  fill={surface.color}
+                  stroke="var(--howl-cream)"
+                  strokeWidth={0.5}
+                />
+              ) : null
             )}
 
-            {/* Tick at 100 (the outer rim) to anchor the "max" visually */}
-            {(() => {
-              const [tx1, ty1] = polar((startAngle + endAngle) / 2, outerR - 2);
-              const [tx2, ty2] = polar((startAngle + endAngle) / 2, outerR + 4);
-              return (
-                <line
-                  x1={tx1}
-                  y1={ty1}
-                  x2={tx2}
-                  y2={ty2}
-                  stroke="var(--howl-ink)"
-                  strokeOpacity={0.35}
-                  strokeWidth={1}
-                />
-              );
-            })()}
+            {/* Room to grow: pale outlined segment from end of stack to outer */}
+            {outlineEnd > outlineStart + 0.5 && (
+              <path
+                d={annularSectorPath(startAngle, endAngle, outlineStart, outlineEnd)}
+                fill="var(--howl-bone)"
+                fillOpacity={0.55}
+                stroke="var(--howl-ink)"
+                strokeOpacity={0.22}
+                strokeWidth={1}
+              />
+            )}
 
             {/* Signal name */}
             <text
@@ -1323,7 +1309,7 @@ function RadialScoreBars({ signals, size = 520 }) {
             >
               {sig.name}
             </text>
-            {/* Score number, color-coded by tier */}
+            {/* Signal mean score, color-coded by tier */}
             <text
               x={lx}
               y={ly + 19}
@@ -1334,14 +1320,11 @@ function RadialScoreBars({ signals, size = 520 }) {
                 fontSize: '18px',
                 fontWeight: 700,
                 fontVariantNumeric: 'tabular-nums',
-                fill: tierColor(score),
+                fill: tierColor(sigData.score || 0),
                 letterSpacing: '0.02em',
               }}
             >
               {displayScore}
-              <tspan style={{ fontSize: '11px', fill: 'var(--howl-mute)', fontWeight: 400 }}>
-                {' / 100'}
-              </tspan>
             </text>
           </g>
         );
@@ -1520,19 +1503,21 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
           </div>
           <RadialScoreBars signals={report.signals} />
           <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center pt-2">
-            <div className="flex items-center gap-2">
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 12,
-                  height: 12,
-                  background: 'var(--howl-coral)',
-                }}
-              />
-              <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
-                Score
-              </span>
-            </div>
+            {SURFACES.map((s) => (
+              <div key={s.id} className="flex items-center gap-2">
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 12,
+                    height: 12,
+                    background: s.color,
+                  }}
+                />
+                <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
+                  {s.name}
+                </span>
+              </div>
+            ))}
             <div className="flex items-center gap-2">
               <span
                 style={{
@@ -1541,7 +1526,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
                   height: 12,
                   background: 'var(--howl-bone)',
                   border: '1px solid var(--howl-ink)',
-                  borderOpacity: 0.4,
+                  opacity: 0.6,
                 }}
               />
               <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
@@ -1550,7 +1535,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
             </div>
           </div>
           <p className="text-xs text-center mt-4" style={{ color: 'var(--howl-mute)' }}>
-            Each spoke is a signal. The filled portion is the score; the outlined portion is the gap to a full howl.
+            Each spoke is a signal. The four stacked colors are surface scores; the outlined segment is room to grow into a full howl.
           </p>
         </div>
         <div className="card-howl p-5 sm:p-6 md:col-span-2">
