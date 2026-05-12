@@ -1495,6 +1495,73 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         </div>
       )}
 
+      {/* Belief modifier: flags the relationship between overall volume and
+          audience credibility without folding belief into the headline score. */}
+      {(() => {
+        if (!report.belief) return null;
+        const scores = BELIEF_IDS
+          .map((id) => report.belief[id]?.score)
+          .filter((s) => typeof s === 'number');
+        if (scores.length === 0) return null;
+        const beliefAvg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        const delta = beliefAvg - overall;
+
+        let read;
+        if (delta >= 15) {
+          read = 'Underrated. Audiences trust the story more than the brand is broadcasting it.';
+        } else if (delta >= 5) {
+          read = 'Audiences are giving more credit than the messaging earns.';
+        } else if (delta <= -15) {
+          read = 'Shouting without trust. Audiences hear the brand but do not believe it.';
+        } else if (delta <= -5) {
+          read = 'Volume runs ahead of credibility. The claims land as more aspirational than earned.';
+        } else {
+          read = 'In sync. Volume and credibility are moving together.';
+        }
+
+        return (
+          <div
+            className="mb-10 -mt-6 p-4 sm:p-5"
+            style={{
+              background: 'var(--howl-cream)',
+              border: '1px solid var(--howl-cream-deep)',
+            }}
+          >
+            <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
+              <div className="shrink-0">
+                <div
+                  className="howl-stamp mb-1"
+                  style={{ fontSize: '0.6875rem', color: 'var(--howl-mute)', letterSpacing: '0.12em' }}
+                >
+                  Belief modifier
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="font-display tabular-nums"
+                    style={{ fontSize: '2rem', lineHeight: 1, color: scoreColor(beliefAvg) }}
+                  >
+                    {beliefAvg}
+                  </span>
+                  <span
+                    className="text-[10px] tracking-[0.15em] uppercase"
+                    style={{ color: 'var(--howl-mute)' }}
+                  >
+                    / 100
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}>
+                  Overall reflects messaging volume across the six signals. The Belief Read tracks
+                  audience reception separately and is not folded into the headline score.{' '}
+                  <span style={{ color: 'var(--howl-ink)', fontWeight: 600 }}>{read}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Radial chart + summary */}
       <div className="grid md:grid-cols-5 gap-6 mb-12">
         <div className="card-howl p-5 sm:p-6 md:col-span-3">
@@ -2262,14 +2329,14 @@ Return STRICT JSON only. No prose outside the JSON. No code fences. The schema i
     "summary": "3-4 sentences in HOWL voice on the overall conduct verdict. Whether the brand has earned its position or trapped its way to it. Whether it competes in the market or controls the market."
   },
   "edge": [
-    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_ID"] },
-    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] },
-    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID", "SIGNAL_ID"] }
+    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_OR_BELIEF_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_OR_BELIEF_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_OR_BELIEF_ID", "SIGNAL_OR_BELIEF_ID"] }
   ],
   "play": [
-    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. The creative provocation and why it's earnable for THIS brand", "addresses": ["SIGNAL_ID"] },
-    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] },
-    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_ID"] }
+    { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. The creative provocation and why it's earnable for THIS brand", "addresses": ["SIGNAL_OR_BELIEF_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_OR_BELIEF_ID"] },
+    { "title": "...", "rationale": "...", "addresses": ["SIGNAL_OR_BELIEF_ID"] }
   ]
 }
 
@@ -2282,7 +2349,14 @@ Scoring rules:
 - MANDATORY: Always return EXACTLY 3 items in the "edge" array and EXACTLY 3 items in the "play" array. Never return empty arrays. Never return fewer than 3. This applies to every brand regardless of overall score. If no signal is weak, target the 3 LOWEST-scoring signals to push them from Speaking to Howling.
 - Each recommendation must be BRAND-SPECIFIC. Reference the brand's actual evidence (a page, a campaign, a language tic, a missing surface presence) in the rationale. No generic agency boilerplate. No advice that could apply to any brand in the category.
 - EDGE recommendations are strategic. PLAY recommendations are creative provocations.
-- "addresses" arrays use UPPERCASE signal IDs: VOLUME, INTEGRATION, IDENTITY, CANDOR, DESIRE, MOMENTUM.
+- BELIEF GAP RULE for EDGE: Before finalizing EDGE, compute the Belief average (mean of trusted/proven/participatory scores) and compare it to the Six Signals average. The deltas reshape EDGE as follows:
+   * If Belief is 10+ points BELOW the signal average: the brand is shouting without trust. AT LEAST ONE of the three EDGE recommendations MUST address a belief dimension (TRUSTED, PROVEN, or PARTICIPATORY), not a volume signal. Pure volume EDGE makes the problem worse, not better. Name the specific credibility gap and the move that closes it.
+   * If Belief is 15+ points ABOVE the signal average: the brand has latent credibility it is failing to broadcast. At least one EDGE should convert that audience trust into reach (e.g., a volume move that points back at the proven-impact substrate).
+   * If Belief is within 9 points of the signal average: EDGE can stay focused on signal weaknesses without forcing a belief recommendation.
+- "addresses" arrays use UPPERCASE IDs from one of these sets:
+   * SIGNAL IDs: VOLUME, INTEGRATION, IDENTITY, CANDOR, DESIRE, MOMENTUM
+   * BELIEF DIMENSION IDs: TRUSTED, PROVEN, PARTICIPATORY
+   A single recommendation can mix signal and belief targets, e.g. ["CANDOR", "TRUSTED"].
 - Return ONLY the JSON object. No markdown fences. No preamble.`;
 }
 
