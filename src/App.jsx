@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { track } from '@vercel/analytics';
 import {
   SIGNALS,
   CATEGORIES,
@@ -2998,6 +2999,20 @@ function MainApp() {
           JSON.stringify({ brandMeta: meta, report: normalized })
         );
       } catch { /* ignore */ }
+
+      // Telemetry: fire a Vercel Analytics event so we can see aggregate
+      // patterns across reads (score distributions, category coverage,
+      // verdict tier frequency). No PII, brand names only.
+      try {
+        const verdict = getVerdict(normalized.overall_score);
+        track('read_completed', {
+          brand: meta.brandName,
+          category: meta.category,
+          business_model: meta.businessModel,
+          overall_score: normalized.overall_score,
+          verdict: verdict.id,
+        });
+      } catch { /* analytics is best-effort */ }
 
       // Persist to Supabase in the background. Don't block the report on it.
       if (supabaseEnabled) {
