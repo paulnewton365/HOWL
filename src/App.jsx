@@ -2472,6 +2472,12 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         sublabel="Strategic moves to sharpen who you are."
         icon={<Zap size={20} />}
         recommendations={report.edge || []}
+        standards={[
+          'Sharpens who the brand is, not just what it says.',
+          'Names a specific signal weakness from this READ and fixes it.',
+          'Converts credibility into reach, or builds trust where volume runs ahead.',
+          'Ownable. Not a move any competitor could copy and paste.',
+        ]}
         bg="var(--howl-ink)"
         fg="var(--howl-bone)"
         accent="var(--howl-ink)"
@@ -2482,6 +2488,12 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         sublabel="Creative provocations to earn attention beyond the feed."
         icon={<Sparkles size={20} />}
         recommendations={report.play || []}
+        standards={[
+          'Talkable. Audiences would repeat or share it without being asked.',
+          'Benefit-led, not duty-led. Desire over obligation.',
+          'Specific to this brand. Not category-generic.',
+          'Could ship inside the brand\u2019s current creative and operational capability.',
+        ]}
         bg="var(--howl-coral)"
         fg="var(--howl-ink)"
         accent="var(--howl-coral)"
@@ -2750,7 +2762,7 @@ function BeliefSection({ belief }) {
   );
 }
 
-function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, accent }) {
+function RecommendationBlock({ label, sublabel, icon, recommendations, standards, bg, fg, accent }) {
   if (!recommendations || recommendations.length === 0) return null;
   return (
     <div className="mb-10">
@@ -2764,6 +2776,54 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, a
         <p className="text-sm opacity-85">{sublabel}</p>
       </div>
       <div className="grid md:grid-cols-2 gap-4">
+        {/* Standards card: editorial brief showing what every recommendation
+            in this section had to meet. Sits as the first cell so the 3 AI-
+            generated recommendations fill the remaining 3 cells of the 2x2
+            grid — no empty space at the bottom. */}
+        {standards && standards.length > 0 && (
+          <div
+            className="p-5"
+            style={{
+              background: 'var(--howl-cream)',
+              border: `1.5px solid ${accent}`,
+              borderLeftWidth: '4px',
+            }}
+          >
+            <div
+              className="howl-stamp mb-3"
+              style={{ fontSize: '0.6875rem', color: 'var(--howl-mute)', letterSpacing: '0.14em' }}
+            >
+              Standards
+            </div>
+            <p
+              className="text-xs mb-3"
+              style={{ color: 'var(--howl-mute)', fontStyle: 'italic', lineHeight: 1.45 }}
+            >
+              Every {label.toLowerCase()} below had to meet these:
+            </p>
+            <ul className="space-y-2">
+              {standards.map((s, i) => (
+                <li
+                  key={i}
+                  className="text-sm flex gap-2 items-start"
+                  style={{ color: 'var(--howl-ink)', lineHeight: 1.45 }}
+                >
+                  <span
+                    className="font-display shrink-0 tabular-nums"
+                    style={{
+                      fontSize: '0.875rem',
+                      color: accent,
+                      minWidth: '1.25rem',
+                    }}
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {recommendations.map((r, i) => (
           <div key={i} className="card-howl p-5">
             <div className="flex items-start justify-between mb-2 gap-3">
@@ -2932,10 +2992,12 @@ For belief scoring, focus on what AUDIENCES say and how the brand is RECEIVED, n
 Use web_search aggressively before scoring. For each brand you read:
 1. Fetch the homepage and About page.
 2. Search for the brand's recent social posts on LinkedIn, Instagram, X, TikTok, YouTube.
-3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit, App stores.
-4. Search for tier-one earned media coverage from the last 12 months.
-5. Search for greenwashing or credibility commentary about the brand on Reddit and in earned media.
-6. Note how publicly accessible AI information describes the brand.
+3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit (subreddits and threads naming the brand), and relevant App stores.
+4. Check the brand's Wikipedia page if one exists: how is the brand framed, what controversies or critiques are documented, what citations are used.
+5. Search for tier-one earned media coverage from the last 12 months.
+6. Search for greenwashing or credibility commentary about the brand on Reddit and in earned media.
+7. Search for industry-specific trust signals tied to the brand: B Corp certification, ISO standards, Fair Trade, CDP scores, sustainability ratings (MSCI, Sustainalytics), regulatory filings.
+8. Note how publicly accessible AI information describes the brand.
 
 You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You name pages, campaigns, partners, language patterns, headlines. No generic statements like "their website discusses sustainability".
 
