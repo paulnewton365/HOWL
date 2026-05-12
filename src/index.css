@@ -186,3 +186,36 @@ html, body, #root {
 
 /* Selection */
 ::selection { background: var(--howl-coral); color: var(--howl-ink); }
+
+/* ─── RESPONSIVE HELPERS ─────────────────────────────────────────────── */
+
+/* Hero image on intake.
+   On mobile the parent column is single-column auto-height, so flex-1 +
+   minHeight:0 would collapse the image to 0px. Give it an aspect ratio
+   on mobile, and only stretch to fill at lg+ where the two columns sit
+   side by side. */
+.hero-image-card {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+}
+@media (min-width: 1024px) {
+  .hero-image-card {
+    aspect-ratio: auto;
+    flex: 1 1 0%;
+  }
+}
+
+/* Tighter buttons on small screens so the header doesn't burst. */
+@media (max-width: 640px) {
+  .btn-howl  { padding: 0.75rem 1.125rem; font-size: 0.8125rem; letter-spacing: 0.06em; }
+  .btn-ghost { padding: 0.625rem 0.875rem; font-size: 0.75rem;  letter-spacing: 0.06em; }
+  .input-howl { padding: 0.75rem 0.875rem; font-size: 1rem; }
+  /* 16px input prevents iOS Safari auto-zoom on focus. */
+}
+
+/* Hide on phone-sized screens. Mainly used on history rows for the
+   verdict pill, which is redundant with the colored numeric score. */
+@media (max-width: 640px) {
+  .hide-on-mobile { display: none !important; }
+}
+

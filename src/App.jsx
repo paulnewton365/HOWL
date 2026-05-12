@@ -31,6 +31,7 @@ import {
   fetchRecentReads,
   fetchReadById,
   deleteRead,
+  findExistingRead,
   supabaseEnabled,
   supabaseStatus,
   supabaseDebug,
@@ -315,6 +316,13 @@ function VerdictStamp({ score, size = 'sm' }) {
 // ============================================================================
 
 function HistoryView({ onLoad, onRerun, onReset }) {
+  // Color the score number by tier, so on mobile (where we hide the verdict
+  // pill) the color alone tells you Whispering / Speaking / Howling.
+  function scoreColorFor(score) {
+    if (score >= 70) return 'var(--howl-strong)';
+    if (score >= 40) return 'var(--howl-mid)';
+    return 'var(--howl-weak)';
+  }
   const [reads, setReads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -397,7 +405,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 howl-fadein">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="howl-stamp" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
@@ -465,7 +473,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
 
       {/* Empty */}
       {!loading && !error && reads.length === 0 && (
-        <div className="card-howl p-7" style={{ background: 'var(--howl-bone)' }}>
+        <div className="card-howl p-5 sm:p-7" style={{ background: 'var(--howl-bone)' }}>
           <p className="text-base mb-2" style={{ color: 'var(--howl-ink-soft)' }}>
             No reads recorded yet.
           </p>
@@ -587,7 +595,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
           )}
 
           {filtered.length === 0 ? (
-            <div className="card-howl p-7 text-center" style={{ background: 'var(--howl-bone)' }}>
+            <div className="card-howl p-5 sm:p-7 text-center" style={{ background: 'var(--howl-bone)' }}>
               <p className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>
                 No reads match those filters.
               </p>
@@ -605,7 +613,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                 return (
                   <div
                     key={r.id}
-                    className="card-howl flex items-center gap-3 p-3 hover:bg-[var(--howl-bone)] transition-colors"
+                    className="card-howl flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-[var(--howl-bone)] transition-colors"
                     style={{ cursor: 'pointer' }}
                     onClick={() => onLoad(r)}
                   >
@@ -617,7 +625,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                         {r.brand_name}
                       </div>
                       <div
-                        className="text-[11px] tracking-wide uppercase mt-1"
+                        className="text-[11px] tracking-wide uppercase mt-1 truncate"
                         style={{ color: 'var(--howl-mute)' }}
                       >
                         {dateStr}{category ? ` · ${category}` : ''}
@@ -625,11 +633,11 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                     </div>
                     <div
                       className="font-display tabular-nums shrink-0"
-                      style={{ fontSize: '1.75rem', lineHeight: 1, color: 'var(--howl-ink)' }}
+                      style={{ fontSize: '1.625rem', lineHeight: 1, color: scoreColorFor(r.overall_score) }}
                     >
                       {r.overall_score}
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 hide-on-mobile">
                       <VerdictStamp score={r.overall_score} />
                     </div>
                     <button
@@ -693,6 +701,118 @@ function supabaseConnectionHelp(reason) {
   }
 }
 
+// ============================================================================
+// DUPLICATE WARNING — shown when intake submits a brand that's already in
+// the archive. User can view the existing read, override and run fresh
+// anyway, or cancel back to the form.
+// ============================================================================
+
+function DuplicateWarning({ existing, onViewExisting, onProceed, onCancel }) {
+  const verdict = getVerdict(existing.overall_score);
+  const dateStr = new Date(existing.created_at).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const category = CATEGORIES.find((c) => c.id === existing.category)?.name;
+
+  function scoreColor(score) {
+    if (score >= 70) return 'var(--howl-strong)';
+    if (score >= 40) return 'var(--howl-mid)';
+    return 'var(--howl-weak)';
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8 sm:py-14 howl-fadein">
+      <div
+        className="card-howl p-5 sm:p-7"
+        style={{ borderColor: 'var(--howl-coral)', borderLeftWidth: '4px' }}
+      >
+        <div className="flex items-start gap-2 mb-3">
+          <AlertTriangle size={18} className="shrink-0 mt-0.5" style={{ color: 'var(--howl-coral)' }} />
+          <div
+            className="howl-stamp"
+            style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
+          >
+            Already in the archive
+          </div>
+        </div>
+
+        <h1
+          className="font-display mb-3"
+          style={{ fontSize: 'clamp(1.75rem, 4.5vw, 2.75rem)', lineHeight: 1.05 }}
+        >
+          We've already read {existing.brand_name}.
+        </h1>
+        <p className="mb-6" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.55 }}>
+          Loading the existing Read is faster, avoids spending another API call, and keeps the
+          archive tidy. You can still run a fresh one if something material has changed since
+          {' '}{dateStr}.
+        </p>
+
+        {/* Summary card of the existing read */}
+        <div
+          className="card-howl flex items-center gap-3 p-3 sm:p-4 mb-6"
+          style={{ background: 'var(--howl-bone)' }}
+        >
+          <div className="flex-1 min-w-0">
+            <div
+              className="font-display truncate"
+              style={{ fontSize: '1.25rem', lineHeight: 1.1 }}
+            >
+              {existing.brand_name}
+            </div>
+            <div
+              className="text-[11px] tracking-wide uppercase mt-1 truncate"
+              style={{ color: 'var(--howl-mute)' }}
+            >
+              {dateStr}{category ? ` · ${category}` : ''}
+            </div>
+          </div>
+          <div
+            className="font-display tabular-nums shrink-0"
+            style={{ fontSize: '2rem', lineHeight: 1, color: scoreColor(existing.overall_score) }}
+          >
+            {existing.overall_score}
+          </div>
+          <div className="shrink-0 hide-on-mobile">
+            <VerdictStamp score={existing.overall_score} />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button onClick={onViewExisting} className="btn-howl">
+            <ArrowRight size={14} />
+            View existing Read
+          </button>
+          <button onClick={onCancel} className="btn-ghost">
+            <ArrowLeft size={14} />
+            Back to intake
+          </button>
+          <button
+            onClick={onProceed}
+            className="btn-ghost"
+            title="This will create a second entry. The admin can clean up duplicates from the archive."
+          >
+            <RefreshCw size={14} />
+            Run a fresh one anyway
+          </button>
+        </div>
+
+        <p
+          className="text-xs mt-5 pt-4"
+          style={{ borderTop: '1px solid var(--howl-cream-deep)', color: 'var(--howl-mute)' }}
+        >
+          Running a fresh read creates a second entry for {existing.brand_name} in the archive.
+          {isAdmin()
+            ? ' You can delete the older one from Previous Reads after this finishes.'
+            : ' Ask the admin to clean up duplicates if needed.'}
+        </p>
+      </div>
+    </main>
+  );
+}
+
 function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
   return (
     <header
@@ -701,7 +821,7 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
         background: 'var(--howl-cream)',
       }}
     >
-      <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <HowlLogo height={32} />
           <div
@@ -719,17 +839,27 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {showHistory && (
-            <button onClick={onHistory} className="btn-ghost">
+            <button
+              onClick={onHistory}
+              className="btn-ghost"
+              title="Previous Reads"
+              aria-label="Previous Reads"
+            >
               <Clock size={14} />
-              Previous Reads
+              <span className="hidden sm:inline">Previous Reads</span>
             </button>
           )}
           {showReset && (
-            <button onClick={onReset} className="btn-ghost">
+            <button
+              onClick={onReset}
+              className="btn-ghost"
+              title="New READ"
+              aria-label="New READ"
+            >
               <RefreshCw size={14} />
-              New READ
+              <span className="hidden sm:inline">New READ</span>
             </button>
           )}
           {onSignOut && (
@@ -737,6 +867,7 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
               onClick={onSignOut}
               className="btn-ghost"
               title={getUserEmail() ? `Sign out (${getUserEmail()}${isAdmin() ? ', admin' : ''})` : 'Sign out'}
+              aria-label="Sign out"
               style={{ padding: '6px 10px' }}
             >
               <LogOut size={14} />
@@ -753,12 +884,12 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
 // AI engine descriptions, additional context.
 // ============================================================================
 
-function IntakeForm({ onSubmit, disabled }) {
-  const [brandName, setBrandName] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [category, setCategory] = useState('tech');
-  const [businessModel, setBusinessModel] = useState('b2c');
-  const [context, setContext] = useState('');
+function IntakeForm({ onSubmit, disabled, initialValues }) {
+  const [brandName, setBrandName] = useState(initialValues?.brandName || '');
+  const [websiteUrl, setWebsiteUrl] = useState(initialValues?.websiteUrl || '');
+  const [category, setCategory] = useState(initialValues?.category || 'tech');
+  const [businessModel, setBusinessModel] = useState(initialValues?.businessModel || 'b2c');
+  const [context, setContext] = useState(initialValues?.context || '');
   const [error, setError] = useState('');
   const [heroError, setHeroError] = useState(false);
 
@@ -784,7 +915,7 @@ function IntakeForm({ onSubmit, disabled }) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 howl-fadein">
       <div className="grid lg:grid-cols-5 gap-8 lg:items-stretch">
         {/* Left: hero image + headline */}
         <div className="lg:col-span-2 flex flex-col">
@@ -805,8 +936,8 @@ function IntakeForm({ onSubmit, disabled }) {
           </div>
 
           <div
-            className="card-howl overflow-hidden flex-1"
-            style={{ borderColor: 'var(--howl-ink)', minHeight: 0 }}
+            className="card-howl overflow-hidden hero-image-card"
+            style={{ borderColor: 'var(--howl-ink)' }}
           >
             {!heroError ? (
               <img
@@ -826,7 +957,7 @@ function IntakeForm({ onSubmit, disabled }) {
         </div>
 
         {/* Right: the form */}
-        <form onSubmit={handleSubmit} className="lg:col-span-3 card-howl p-7 space-y-6">
+        <form onSubmit={handleSubmit} className="lg:col-span-3 card-howl p-5 sm:p-7 space-y-6">
           <div className="howl-stamp" style={{ fontSize: '0.9375rem' }}>
             01. Pick A Read
           </div>
@@ -976,7 +1107,7 @@ function RunningRead({ brandName, stage }) {
   }, [lines.length]);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-20 text-center howl-fadein">
+    <main className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20 text-center howl-fadein">
       <div
         className="howl-stamp mb-3"
         style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
@@ -1294,7 +1425,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 howl-fadein">
       {/* Verdict header */}
       <div className="mb-10">
         <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
@@ -1328,7 +1459,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
       {/* Verdict pull-quote */}
       {report.verdict && (
         <div
-          className="mb-10 p-6"
+          className="mb-10 p-5 sm:p-6"
           style={{
             background: 'var(--howl-bone)',
             border: '1.5px solid var(--howl-ink)',
@@ -1344,7 +1475,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
 
       {/* Radial chart + summary */}
       <div className="grid md:grid-cols-5 gap-6 mb-12">
-        <div className="card-howl p-6 md:col-span-3">
+        <div className="card-howl p-5 sm:p-6 md:col-span-3">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
             Six Signals × Four Surfaces
           </div>
@@ -1354,7 +1485,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
             Each wedge is a signal. Each band inside the wedge is a surface score. Longer wedge = louder.
           </p>
         </div>
-        <div className="card-howl p-6 md:col-span-2">
+        <div className="card-howl p-5 sm:p-6 md:col-span-2">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>The Read</div>
           {report.summary && (
             <p
@@ -1402,7 +1533,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
             const s = report.signals[sig.id];
             if (!s) return null;
             return (
-              <div key={sig.id} className="card-howl p-6">
+              <div key={sig.id} className="card-howl p-5 sm:p-6">
                 <div className="flex items-baseline justify-between mb-3">
                   <div className="font-display" style={{ fontSize: '1.625rem', lineHeight: 1 }}>
                     {sig.name}
@@ -1506,7 +1637,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
                 What Claude says about you
               </div>
               <div
-                className="card-howl p-6 h-full"
+                className="card-howl p-5 sm:p-6 h-full"
                 style={{
                   borderLeftWidth: '4px',
                   borderLeftColor: 'var(--howl-coral)',
@@ -1542,7 +1673,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
                 Social presence we found
               </div>
               <div
-                className="card-howl p-6 h-full"
+                className="card-howl p-5 sm:p-6 h-full"
                 style={{
                   borderLeftWidth: '4px',
                   borderLeftColor: 'var(--howl-coral)',
@@ -1693,7 +1824,7 @@ function BeliefSection({ belief }) {
           const data = belief[d.id];
           if (!data) return null;
           return (
-            <div key={d.id} className="card-howl p-6 flex flex-col">
+            <div key={d.id} className="card-howl p-5 sm:p-6 flex flex-col">
               <div className="flex items-baseline justify-between mb-2">
                 <div className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
                   {d.name}
@@ -1730,7 +1861,7 @@ function BeliefSection({ belief }) {
 
       {belief.summary && (
         <div
-          className="p-6"
+          className="p-5 sm:p-6"
           style={{
             background: 'var(--howl-bone)',
             border: '1.5px solid var(--howl-ink)',
@@ -1751,7 +1882,7 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, a
   if (!recommendations || recommendations.length === 0) return null;
   return (
     <div className="mb-10">
-      <div className="p-6 mb-5" style={{ background: bg, color: fg, border: `1.5px solid ${accent}` }}>
+      <div className="p-5 sm:p-6 mb-5" style={{ background: bg, color: fg, border: `1.5px solid ${accent}` }}>
         <div className="flex items-center gap-3 mb-1">
           {icon}
           <div className="font-display" style={{ fontSize: '2.25rem', lineHeight: 1 }}>
@@ -1811,8 +1942,8 @@ function ErrorScreen({ error, onBack, onSignOut }) {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-20 howl-fadein">
-      <div className="card-howl p-7" style={{ borderColor: 'var(--howl-weak)' }}>
+    <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 sm:py-20 howl-fadein">
+      <div className="card-howl p-5 sm:p-7" style={{ borderColor: 'var(--howl-weak)' }}>
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle size={20} style={{ color: 'var(--howl-weak)' }} />
           <div className="howl-stamp" style={{ fontSize: '1rem', color: 'var(--howl-weak)' }}>
@@ -2343,6 +2474,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | { error: string }
+  const [duplicateExisting, setDuplicateExisting] = useState(null);
+  const [pendingMeta, setPendingMeta] = useState(null);
 
   useEffect(() => {
     try {
@@ -2358,7 +2491,34 @@ export default function App() {
     } catch { /* ignore */ }
   }, []);
 
-  async function runRead(meta) {
+  // Entry point for the form. Checks for a duplicate first; if found, shows
+  // the warning UI instead of running. The user can then choose to view the
+  // existing read, override and run fresh, or cancel.
+  async function runRead(meta, { skipDuplicateCheck = false } = {}) {
+    setError('');
+    setSubmitting(true);
+
+    if (supabaseEnabled && !skipDuplicateCheck) {
+      try {
+        const existing = await findExistingRead(meta.brandName, meta.websiteUrl);
+        if (existing) {
+          setDuplicateExisting(existing);
+          setPendingMeta(meta);
+          setView('duplicate');
+          setSubmitting(false);
+          return;
+        }
+      } catch (e) {
+        // Duplicate check is a best-effort feature. If it fails (network,
+        // RLS, whatever), don't block the user; just log and continue.
+        console.warn('[HOWL READ] duplicate check failed, proceeding:', e);
+      }
+    }
+
+    await executeRead(meta);
+  }
+
+  async function executeRead(meta) {
     setError('');
     setSubmitting(true);
     setBrandMeta(meta);
@@ -2468,6 +2628,8 @@ export default function App() {
     setBrandMeta(null);
     setError('');
     setSaveStatus(null);
+    setDuplicateExisting(null);
+    setPendingMeta(null);
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     setView('intake');
   }
@@ -2495,7 +2657,29 @@ export default function App() {
   // Re-run a READ using a previous read's brand inputs.
   function rerunFromHistory(row) {
     if (!row?.brand_meta) return;
-    runRead(row.brand_meta);
+    // Re-run from history is an explicit, intentional re-run of an existing
+    // brand. Skip the duplicate check so the warning UI doesn't appear.
+    runRead(row.brand_meta, { skipDuplicateCheck: true });
+  }
+
+  // Duplicate-warning handlers.
+  function viewExistingFromWarning() {
+    const existing = duplicateExisting;
+    setDuplicateExisting(null);
+    setPendingMeta(null);
+    if (existing) loadFromHistory(existing);
+  }
+  function proceedDespiteDuplicate() {
+    const meta = pendingMeta;
+    setDuplicateExisting(null);
+    setPendingMeta(null);
+    if (meta) executeRead(meta);
+  }
+  function cancelDuplicate() {
+    setDuplicateExisting(null);
+    // Intentionally keep pendingMeta so IntakeForm pre-fills with the values
+    // the user just submitted, instead of clearing the form.
+    setView('intake');
   }
 
   function signOut() {
@@ -2514,7 +2698,21 @@ export default function App() {
         onHistory={() => setView('history')}
         showHistory={historyAvailable && view !== 'history'}
       />
-      {view === 'intake' && <IntakeForm onSubmit={runRead} disabled={submitting} />}
+      {view === 'intake' && (
+        <IntakeForm
+          onSubmit={runRead}
+          disabled={submitting}
+          initialValues={pendingMeta}
+        />
+      )}
+      {view === 'duplicate' && duplicateExisting && (
+        <DuplicateWarning
+          existing={duplicateExisting}
+          onViewExisting={viewExistingFromWarning}
+          onProceed={proceedDespiteDuplicate}
+          onCancel={cancelDuplicate}
+        />
+      )}
       {view === 'history' && (
         <HistoryView
           onLoad={loadFromHistory}
