@@ -3,7 +3,7 @@
 // Brand-agnostic: applies to any brand trying to be more consequential,
 // not only sustainability or impact brands.
 
-export const FRAMEWORK_VERSION = '2.0';
+export const FRAMEWORK_VERSION = '2.1';
 
 // ============================================================================
 // VERDICT TIERS. HOWL's voice for the overall stance
@@ -368,6 +368,79 @@ export const BELIEF_DIMENSIONS = [
 ];
 
 export const BELIEF_IDS = BELIEF_DIMENSIONS.map((d) => d.id);
+
+// ============================================================================
+// CONDUCT DIMENSIONS, three reads of competitive and market behavior. Independent
+// of communication strength: a brand can howl loudly AND behave well, or
+// quietly while behaving badly. Higher score = healthier, more proportionate
+// and more open. Lower score = signals of dominance abuse, anti-competitive
+// tactics, or designed-in lock-in.
+// ============================================================================
+
+export const CONDUCT_DIMENSIONS = [
+  {
+    id: 'PROPORTION',
+    name: 'Proportion',
+    question: 'Is the brand\'s market position proportionate to the value it creates, or maintained through gatekeeping?',
+    thesis: 'Scale earned through better product, service, or economics is healthy. Scale maintained through gatekeeping, killer acquisitions, or rule-bending is parasitism. Audiences and regulators are increasingly willing to make the distinction, and to act on it.',
+    strong: [
+      'Market position is demonstrably earned through product, service, or economic advantage',
+      'Multiple credible competitors exist and are growing',
+      'Acquisitions, when made, expand capability rather than eliminate emerging challengers',
+      'No active antitrust action, consent decree, or regulatory concern in the past five years',
+      'Industry analysts describe the brand as a category leader, not a category captor',
+    ],
+    weak: [
+      'Dominant share in a category with active gatekeeping behavior',
+      'Documented pattern of "killer acquisitions" of nascent competitors',
+      'Antitrust investigations, fines, or consent decrees in the past five years',
+      'Press, analysts, or watchdogs use the words monopoly, gatekeeper, or dominant when describing the brand',
+      'Pricing or market power that extracts rent beyond what value created would suggest',
+    ],
+  },
+  {
+    id: 'FAIR',
+    name: 'Fair',
+    question: 'Does the brand compete on merit, or use anti-competitive tactics to suppress alternatives?',
+    thesis: 'Fair play means winning by building, not by smothering. Out-competing on product and reputation belongs in the win column. Predatory pricing, frivolous IP suits, non-competes on rank-and-file workers, vertical foreclosure, and lobbying for regulatory moats are a different game, and audiences increasingly recognize it.',
+    strong: [
+      'Competes on product, brand, and price within normal market dynamics',
+      'No documented history of predatory pricing followed by post-failure price increases',
+      'IP enforcement is targeted at clear infringement, not used as a strategic weapon against rivals',
+      'Treats partners, suppliers, and workers as participants in growth rather than extractive surfaces',
+      'Lobbying activity, where it exists, is transparent and proportional to the brand\'s size',
+    ],
+    weak: [
+      'Documented predatory pricing patterns: loss-leading until rivals fail, then price increases',
+      'Patent thickets, frivolous lawsuits, or IP weaponization against legitimate competitors',
+      'Non-compete clauses imposed on rank-and-file workers, not just executives with real trade secrets',
+      'Vertical foreclosure, exclusivity demands, or self-preferencing on its own platforms',
+      'Outsized lobbying spend used to raise barriers to entry, capture regulators, or rewrite rules in its favor',
+    ],
+  },
+  {
+    id: 'OPEN',
+    name: 'Open',
+    question: 'Can customers, partners, and workers leave when they want to, or are they trapped by design?',
+    thesis: 'The cheapest moat is friction. Make leaving hard enough and growth looks like loyalty even when it isn\'t. Walled gardens, opaque contracts, hard-to-cancel subscriptions, format lock-in, and non-competes are all the same move dressed differently. Open brands build moats out of value. Closed brands build them out of barriers.',
+    strong: [
+      'Account closure, data portability, and cancellation paths are clear and one-click-style',
+      'Interoperable standards, open formats, or genuine third-party integration without artificial gating',
+      'Workers can leave without legal threats; partners can switch without punitive penalties',
+      'Switching costs that exist are real (training, integration) rather than manufactured (DRM, format lock)',
+      'Public stance and operational policy on customer and worker exit are coherent with each other',
+    ],
+    weak: [
+      'Cancellation flows are deliberately byzantine, with dark patterns and retention mazes',
+      'Proprietary formats, DRM, or platform lock-in designed primarily to raise switching costs',
+      'Aggressive non-compete or trade-secret litigation against departing employees',
+      'Partner agreements that include exclusivity clauses or punishing exit penalties',
+      'Customers, employees, or partners publicly describe the brand as hard to leave even when relationships sour',
+    ],
+  },
+];
+
+export const CONDUCT_IDS = CONDUCT_DIMENSIONS.map((d) => d.id);
 
 // ============================================================================
 // RECOMMENDATION PLAYBOOKS. EDGE (strategy) and PLAY (creative)

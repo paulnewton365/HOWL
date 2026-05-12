@@ -11,7 +11,9 @@ import {
   EDGE_PLAYBOOK,
   PLAY_PLAYBOOK,
   BELIEF_DIMENSIONS,
+  CONDUCT_DIMENSIONS,
   BELIEF_IDS,
+  CONDUCT_IDS,
 } from './data/rubric';
 import pkg from '../package.json';
 import {
@@ -31,7 +33,6 @@ import {
   fetchRecentReads,
   fetchReadById,
   deleteRead,
-  findExistingRead,
   supabaseEnabled,
   supabaseStatus,
   supabaseDebug,
@@ -54,6 +55,8 @@ import {
   Clock,
   Search,
   X,
+  Share2,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 // Auto-incremented on every build via scripts/bump-version.cjs.
@@ -1144,8 +1147,12 @@ function RunningRead({ brandName, stage }) {
 // Outer edge = sum of all surface scores. Inner band labels follow segment angle.
 // ============================================================================
 
-function RadialStackedBars({ signals, size = 520 }) {
-  // Animate wedges and numbers in on mount
+// Radial chart: one bar per signal, going from center outward.
+// Filled portion = the signal's score (colored by verdict tier).
+// Empty portion = the gap to 100, drawn as a thin outline so the user
+// sees how much room remains for the brand to grow louder.
+function RadialScoreBars({ signals, size = 520 }) {
+  // Animate the fill (and the displayed number) in on mount
   const [progress, setProgress] = useState(0);
   useEffect(() => {
     const startTime = performance.now();
@@ -1154,8 +1161,7 @@ function RadialStackedBars({ signals, size = 520 }) {
     function tick(now) {
       const elapsed = now - startTime;
       const t = Math.min(elapsed / duration, 1);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - t, 3);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
       setProgress(eased);
       if (t < 1) rafId = requestAnimationFrame(tick);
     }
@@ -1172,7 +1178,6 @@ function RadialStackedBars({ signals, size = 520 }) {
   const segAngle = 360 / SIGNALS.length;
   const gapDeg = 6;
   const arcDeg = segAngle - gapDeg;
-  const maxStack = 400;
 
   function polar(angleDeg, r) {
     const a = (angleDeg - 90) * (Math.PI / 180);
@@ -1194,7 +1199,6 @@ function RadialStackedBars({ signals, size = 520 }) {
     ].join(' ');
   }
 
-  // Anchor label to the side of the chart it sits on so long names never clip.
   function labelAnchor(angleDeg) {
     const rad = (angleDeg - 90) * (Math.PI / 180);
     const cosVal = Math.cos(rad);
@@ -1202,10 +1206,17 @@ function RadialStackedBars({ signals, size = 520 }) {
     return cosVal > 0 ? 'start' : 'end';
   }
 
-  // Reference rings at 25/50/75/100 of the stack max
+  function tierColor(score) {
+    if (score >= 70) return 'var(--howl-strong)';
+    if (score >= 40) return 'var(--howl-mid)';
+    return 'var(--howl-weak)';
+  }
+
+  // Reference rings at 25/50/75/100 of the 0-100 score range
   const rings = [0.25, 0.5, 0.75, 1.0].map((p) => ({
     r: innerR + (outerR - innerR) * p,
     outermost: p === 1.0,
+    label: Math.round(p * 100),
   }));
 
   return (
@@ -1213,7 +1224,7 @@ function RadialStackedBars({ signals, size = 520 }) {
       viewBox={`${-padX} 0 ${size + 2 * padX} ${size}`}
       width="100%"
       style={{ maxWidth: size + 2 * padX, height: 'auto', display: 'block', margin: '0 auto' }}
-      aria-label="Radial stacked bar chart of HOWL READ scores"
+      aria-label="Radial chart of HOWL READ signal scores. Filled portion is the score, outlined portion is the gap to 100."
     >
       {/* Reference rings */}
       {rings.map((ring) => (
@@ -1240,7 +1251,7 @@ function RadialStackedBars({ signals, size = 520 }) {
         strokeOpacity={0.25}
       />
 
-      {/* Signal wedges with stacked surface bars */}
+      {/* Each signal: a filled segment + an outlined remainder */}
       {SIGNALS.map((sig, i) => {
         const startAngle = i * segAngle + gapDeg / 2;
         const endAngle = startAngle + arcDeg;
@@ -1248,34 +1259,55 @@ function RadialStackedBars({ signals, size = 520 }) {
         const sigData = signals[sig.id];
         if (!sigData) return null;
 
-        let cursorR = innerR;
-        const stacks = SURFACES.map((surface) => {
-          const score = sigData.by_surface?.[surface.id] ?? 0;
-          const span = ((score * progress) / maxStack) * (outerR - innerR);
-          const from = cursorR;
-          const to = cursorR + span;
-          cursorR = to;
-          return { surface, from, to };
-        });
+        const score = sigData.score || 0;
+        const animatedScore = score * progress;
+        const fillR = innerR + (outerR - innerR) * (animatedScore / 100);
+        const fillColor = tierColor(score);
 
         const anchor = labelAnchor(midAngle);
         const [lx, ly] = polar(midAngle, labelR);
-        const displayScore = Math.round((sigData.score || 0) * progress);
+        const displayScore = Math.round(animatedScore);
 
         return (
           <g key={sig.id}>
-            {stacks.map(({ surface, from, to }) =>
-              to > from ? (
-                <path
-                  key={surface.id}
-                  d={annularSectorPath(startAngle, endAngle, from, to)}
-                  fill={surface.color}
-                  stroke="var(--howl-cream)"
-                  strokeWidth={1}
-                />
-              ) : null
+            {/* "Room to grow": outlined wedge from current score to 100 */}
+            <path
+              d={annularSectorPath(startAngle, endAngle, innerR, outerR)}
+              fill="var(--howl-bone)"
+              fillOpacity={0.6}
+              stroke="var(--howl-ink)"
+              strokeOpacity={0.18}
+              strokeWidth={1}
+            />
+
+            {/* Filled portion = signal's score */}
+            {fillR > innerR + 0.5 && (
+              <path
+                d={annularSectorPath(startAngle, endAngle, innerR, fillR)}
+                fill={fillColor}
+                stroke="var(--howl-cream)"
+                strokeWidth={1.5}
+              />
             )}
 
+            {/* Tick at 100 (the outer rim) to anchor the "max" visually */}
+            {(() => {
+              const [tx1, ty1] = polar((startAngle + endAngle) / 2, outerR - 2);
+              const [tx2, ty2] = polar((startAngle + endAngle) / 2, outerR + 4);
+              return (
+                <line
+                  x1={tx1}
+                  y1={ty1}
+                  x2={tx2}
+                  y2={ty2}
+                  stroke="var(--howl-ink)"
+                  strokeOpacity={0.35}
+                  strokeWidth={1}
+                />
+              );
+            })()}
+
+            {/* Signal name */}
             <text
               x={lx}
               y={ly}
@@ -1291,6 +1323,7 @@ function RadialStackedBars({ signals, size = 520 }) {
             >
               {sig.name}
             </text>
+            {/* Score number, color-coded by tier */}
             <text
               x={lx}
               y={ly + 19}
@@ -1300,12 +1333,15 @@ function RadialStackedBars({ signals, size = 520 }) {
                 fontFamily: 'Inter, sans-serif',
                 fontSize: '18px',
                 fontWeight: 700,
-                fill: 'var(--howl-ink-soft)',
-                letterSpacing: '0.01em',
                 fontVariantNumeric: 'tabular-nums',
+                fill: tierColor(score),
+                letterSpacing: '0.02em',
               }}
             >
               {displayScore}
+              <tspan style={{ fontSize: '11px', fill: 'var(--howl-mute)', fontWeight: 400 }}>
+                {' / 100'}
+              </tspan>
             </text>
           </g>
         );
@@ -1315,42 +1351,31 @@ function RadialStackedBars({ signals, size = 520 }) {
 }
 
 // ============================================================================
-// LEGEND
-// ============================================================================
-
-function SurfaceLegend() {
-  return (
-    <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center pt-2">
-      {SURFACES.map((s) => (
-        <div key={s.id} className="flex items-center gap-2">
-          <span
-            style={{
-              display: 'inline-block',
-              width: 12,
-              height: 12,
-              background: s.color,
-            }}
-          />
-          <span
-            className="howl-stamp"
-            style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}
-          >
-            {s.name}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ============================================================================
 // REPORT
 // ============================================================================
 
-function ReadReport({ report, onReset, brandMeta, saveStatus }) {
+function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readOnly }) {
   const overall = report.overall_score;
   const verdict = getVerdict(overall);
   const [copied, setCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const shareUrl = savedReadId
+    ? `${window.location.origin}${window.location.pathname}?read=${savedReadId}`
+    : null;
+
+  async function handleShare() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2200);
+    } catch {
+      // Clipboard API can fail in older browsers / non-secure contexts.
+      // Fall back to a prompt so the user can copy manually.
+      window.prompt('Copy this link:', shareUrl);
+    }
+  }
 
   function scoreColor(score) {
     if (score >= 70) return 'var(--howl-strong)';
@@ -1398,6 +1423,20 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
       });
       if (report.belief.summary) {
         lines.push(report.belief.summary);
+        lines.push('');
+      }
+    }
+    if (report.conduct) {
+      lines.push('## THE CONDUCT READ ##');
+      CONDUCT_DIMENSIONS.forEach((d) => {
+        const data = report.conduct[d.id];
+        if (!data) return;
+        lines.push(`${d.name.toUpperCase()}: ${data.score ?? '–'}`);
+        if (data.read) lines.push(data.read);
+        lines.push('');
+      });
+      if (report.conduct.summary) {
+        lines.push(report.conduct.summary);
         lines.push('');
       }
     }
@@ -1477,12 +1516,41 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
       <div className="grid md:grid-cols-5 gap-6 mb-12">
         <div className="card-howl p-5 sm:p-6 md:col-span-3">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
-            Six Signals × Four Surfaces
+            Six Signals, How Loud
           </div>
-          <RadialStackedBars signals={report.signals} />
-          <SurfaceLegend />
+          <RadialScoreBars signals={report.signals} />
+          <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center pt-2">
+            <div className="flex items-center gap-2">
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  height: 12,
+                  background: 'var(--howl-coral)',
+                }}
+              />
+              <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
+                Score
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  height: 12,
+                  background: 'var(--howl-bone)',
+                  border: '1px solid var(--howl-ink)',
+                  borderOpacity: 0.4,
+                }}
+              />
+              <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
+                Room to grow
+              </span>
+            </div>
+          </div>
           <p className="text-xs text-center mt-4" style={{ color: 'var(--howl-mute)' }}>
-            Each wedge is a signal. Each band inside the wedge is a surface score. Longer wedge = louder.
+            Each spoke is a signal. The filled portion is the score; the outlined portion is the gap to a full howl.
           </p>
         </div>
         <div className="card-howl p-5 sm:p-6 md:col-span-2">
@@ -1605,6 +1673,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
       </div>
 
       <BeliefSection belief={report.belief} />
+      <ConductSection conduct={report.conduct} />
 
       <RecommendationBlock
         label="EDGE"
@@ -1775,14 +1844,25 @@ function ReadReport({ report, onReset, brandMeta, saveStatus }) {
         <button onClick={copyText} className="btn-ghost">
           {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy the READ</>}
         </button>
+        {shareUrl && (
+          <button onClick={handleShare} className="btn-ghost" title="Copy a shareable link to this READ">
+            {shareCopied ? (
+              <><Check size={14} /> Link copied</>
+            ) : (
+              <><Share2 size={14} /> Share link</>
+            )}
+          </button>
+        )}
         <button onClick={() => window.print()} className="btn-ghost">
           <Printer size={14} />
           Print
         </button>
-        <button onClick={onReset} className="btn-howl">
-          <RefreshCw size={14} />
-          Run a new READ
-        </button>
+        {!readOnly && (
+          <button onClick={onReset} className="btn-howl">
+            <RefreshCw size={14} />
+            Run a new READ
+          </button>
+        )}
       </div>
 
       <div
@@ -1871,6 +1951,89 @@ function BeliefSection({ belief }) {
         >
           <p className="text-lg leading-snug" style={{ fontStyle: 'italic' }}>
             "{belief.summary}"
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConductSection({ conduct }) {
+  if (!conduct) return null;
+
+  function scoreColor(score) {
+    if (score === null) return 'var(--howl-mute)';
+    if (score >= 70) return 'var(--howl-strong)';
+    if (score >= 40) return 'var(--howl-mid)';
+    return 'var(--howl-weak)';
+  }
+
+  return (
+    <div className="mb-12">
+      <div className="mb-6">
+        <h2 className="font-display" style={{ fontSize: '2rem', lineHeight: 1.05 }}>
+          The Conduct Read.
+        </h2>
+        <p
+          className="text-base mt-2"
+          style={{ color: 'var(--howl-ink-soft)', fontStyle: 'italic' }}
+        >
+          How the brand wields its market position, plays against rivals, and treats those it captures.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-5 mb-6">
+        {CONDUCT_DIMENSIONS.map((d) => {
+          const data = conduct[d.id];
+          if (!data) return null;
+          return (
+            <div key={d.id} className="card-howl p-5 sm:p-6 flex flex-col">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
+                  {d.name}
+                </div>
+                <div
+                  className="font-display tabular-nums"
+                  style={{
+                    fontSize: '2.5rem',
+                    lineHeight: 1,
+                    color: scoreColor(data.score),
+                  }}
+                >
+                  {data.score ?? '–'}
+                </div>
+              </div>
+              <p
+                className="text-xs mb-4"
+                style={{ color: 'var(--howl-mute)', fontStyle: 'italic' }}
+              >
+                {d.question}
+              </p>
+              {data.read && (
+                <p
+                  className="text-sm"
+                  style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.55 }}
+                >
+                  {data.read}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {conduct.summary && (
+        <div
+          className="p-5 sm:p-6"
+          style={{
+            background: 'var(--howl-bone)',
+            border: '1.5px solid var(--howl-ink)',
+            borderLeftWidth: '4px',
+            borderLeftColor: 'var(--howl-coral)',
+          }}
+        >
+          <p className="text-lg leading-snug" style={{ fontStyle: 'italic' }}>
+            "{conduct.summary}"
           </p>
         </div>
       )}
@@ -2023,6 +2186,15 @@ function buildSystemPrompt() {
       `Weak: ${d.weak.join('; ')}\n`
   ).join('\n');
 
+  const conductSpec = CONDUCT_DIMENSIONS.map(
+    (d) =>
+      `### ${d.id}, ${d.name}\n` +
+      `Question: ${d.question}\n` +
+      `Thesis: ${d.thesis}\n` +
+      `Strong: ${d.strong.join('; ')}\n` +
+      `Weak: ${d.weak.join('; ')}\n`
+  ).join('\n');
+
   return `You are the analytical engine behind HOWL READ, a brand diagnostic from HOWL, a creative agency born inside Antenna Group.
 
 HOWL's thesis applies to any brand, not only sustainability or impact brands:
@@ -2055,13 +2227,27 @@ For belief scoring, focus on what AUDIENCES say and how the brand is RECEIVED, n
 - Brand's own website: is there a take-back program, repair service, community space, advocacy channel? Are consumers given a role?
 - Certifications, audits, third-party ratings: visible, accessible, or buried?
 
+You ALSO score the brand on THREE CONDUCT DIMENSIONS (each 0-100). This is competitive and market behavior, independent of communication: a brand can howl loudly AND behave well, or quietly while behaving badly. Higher score = healthier, more proportionate, more open. Lower score = signals of dominance abuse, anti-competitive tactics, or designed-in lock-in. Every brand gets scored. Small or local brands without meaningful market power will naturally score high; that is informative, not noise.
+
+${conductSpec}
+
+For conduct scoring, focus on observable BEHAVIOR and on-the-record signals, not vibes. Use these sources:
+- Antitrust filings, FTC/DOJ/EC investigations, consent decrees, regulatory actions in the last 5-10 years.
+- Earned media coverage of acquisitions: did the brand absorb competitors to eliminate them, or to expand capability?
+- Litigation history: IP suits brought by the brand, non-compete enforcement, vertical foreclosure complaints.
+- Lobbying disclosures (OpenSecrets, EU transparency register) for size and direction relative to brand size.
+- Reddit, Hacker News, Glassdoor, ex-employee testimony: lock-in, hard-to-cancel patterns, non-compete clauses, dark patterns.
+- Industry analyst language: do they use the words monopoly, gatekeeper, dominant, walled garden?
+- For small or niche brands: note their absence from these surfaces, score accordingly (typically 80+).
+
 Use web_search aggressively before scoring. For each brand you read:
 1. Fetch the homepage and About page.
 2. Search for the brand's recent social posts on LinkedIn, Instagram, X, TikTok, YouTube.
 3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit, App stores.
 4. Search for tier-one earned media coverage from the last 12 months.
 5. Search for greenwashing or credibility commentary about the brand on Reddit and in earned media.
-6. Note how publicly accessible AI information describes the brand.
+6. Search for antitrust action, regulatory investigation, acquisition history, and conduct commentary (FTC, DOJ, EC, antitrust, monopoly, gatekeeper, dark patterns, non-compete, walled garden) tied to the brand.
+7. Note how publicly accessible AI information describes the brand.
 
 You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You name pages, campaigns, partners, language patterns, headlines. No generic statements like "their website discusses sustainability".
 
@@ -2083,6 +2269,12 @@ Return STRICT JSON only. No prose outside the JSON. No code fences. The schema i
     "PROVEN":        { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether evidence exists and whether audiences can find it" },
     "PARTICIPATORY": { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether consumers have a role or just an audience seat" },
     "summary": "3-4 sentences in HOWL voice on the overall audience verdict. Whether the brand has built trust faster than it has built evidence. Whether the impact story is a shared project or a marketing claim."
+  },
+  "conduct": {
+    "PROPORTION": { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether the brand's market position is earned through value or maintained through gatekeeping. Name specific acquisitions, market share data, regulatory actions if relevant." },
+    "FAIR":       { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on competitive tactics. Predatory pricing, killer acquisitions, IP weaponization, non-competes, lobbying, self-preferencing. Name specifics." },
+    "OPEN":       { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on lock-in. Cancellation friction, data portability, walled gardens, format lock, exit barriers for partners or workers. Name specifics." },
+    "summary": "3-4 sentences in HOWL voice on the overall conduct verdict. Whether the brand has earned its position or trapped its way to it. Whether it competes in the market or controls the market."
   },
   "edge": [
     { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_ID"] },
@@ -2327,12 +2519,28 @@ function normalizeReport(raw) {
   });
   if (typeof raw.belief?.summary === 'string') belief.summary = raw.belief.summary;
 
+  // Conduct: market and competitive behavior. Same shape as belief.
+  const conduct = { summary: '' };
+  let hasConductData = false;
+  CONDUCT_IDS.forEach((id) => {
+    const d = raw.conduct?.[id];
+    if (d && typeof d === 'object') {
+      const s = typeof d.score === 'number' ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
+      conduct[id] = { score: s, read: d.read || '' };
+      if (s !== null) hasConductData = true;
+    } else {
+      conduct[id] = { score: null, read: '' };
+    }
+  });
+  if (typeof raw.conduct?.summary === 'string') conduct.summary = raw.conduct.summary;
+
   return {
     overall_score: overall,
     verdict: raw.verdict || '',
     summary: raw.summary || '',
     signals,
     belief: hasBeliefData ? belief : null,
+    conduct: hasConductData ? conduct : null,
     edge,
     play,
   };
@@ -2461,12 +2669,152 @@ function formatSocialsForPrompt(handles) {
 }
 
 // ============================================================================
+// SHARED READ VIEW — public, read-only view of a saved READ via ?read=UUID.
+// Bypasses the password gate so the URL can be sent to clients / colleagues.
+// ============================================================================
+
+function SharedHeader() {
+  return (
+    <header
+      style={{
+        borderBottom: '1.5px solid var(--howl-ink)',
+        background: 'var(--howl-cream)',
+      }}
+    >
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <HowlLogo height={32} />
+          <div
+            className="hidden sm:block pl-4"
+            style={{ borderLeft: '1.5px solid var(--howl-ink)' }}
+          >
+            <div className="howl-stamp" style={{ fontSize: '1.25rem', lineHeight: 1 }}>
+              THE READ
+            </div>
+            <div
+              className="text-[10px] tracking-[0.15em] uppercase"
+              style={{ color: 'var(--howl-mute)' }}
+            >
+              A brand diagnostic
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href={window.location.pathname}
+            className="btn-ghost"
+            title="Run your own READ"
+            aria-label="Run your own READ"
+          >
+            <Megaphone size={14} />
+            <span className="hidden sm:inline">Run your own READ</span>
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function SharedReadView({ id }) {
+  const [report, setReport] = useState(null);
+  const [brandMeta, setBrandMeta] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (!id) {
+      setErrorMsg('No READ id in the URL.');
+      setLoading(false);
+      return;
+    }
+    if (!supabaseEnabled) {
+      setErrorMsg('History is not configured for this deployment.');
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    fetchReadById(id).then((row) => {
+      if (cancelled) return;
+      if (!row || !row.report) {
+        setErrorMsg('This READ could not be found. It may have been deleted.');
+      } else {
+        setReport(row.report);
+        setBrandMeta(row.brand_meta || { brandName: row.brand_name });
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  return (
+    <>
+      <SharedHeader />
+      {loading && (
+        <main className="mx-auto max-w-2xl px-4 sm:px-6 py-20 text-center howl-fadein">
+          <div
+            className="inline-flex items-center gap-3"
+            style={{ color: 'var(--howl-mute)' }}
+          >
+            <Loader2 size={18} className="animate-spin" />
+            <span className="text-sm">Loading the READ.</span>
+          </div>
+        </main>
+      )}
+      {!loading && errorMsg && (
+        <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 sm:py-20 howl-fadein">
+          <div className="card-howl p-5 sm:p-7" style={{ borderColor: 'var(--howl-weak)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={20} style={{ color: 'var(--howl-weak)' }} />
+              <div
+                className="howl-stamp"
+                style={{ fontSize: '1rem', color: 'var(--howl-weak)' }}
+              >
+                READ not found
+              </div>
+            </div>
+            <p style={{ color: 'var(--howl-ink-soft)' }}>{errorMsg}</p>
+            <a href={window.location.pathname} className="btn-howl mt-5 inline-flex">
+              <Megaphone size={14} />
+              Run your own READ
+            </a>
+          </div>
+        </main>
+      )}
+      {!loading && report && brandMeta && (
+        <ReadReport
+          report={report}
+          brandMeta={brandMeta}
+          savedReadId={id}
+          readOnly={true}
+          onReset={() => { window.location.href = window.location.pathname; }}
+        />
+      )}
+      <BuildBadge />
+    </>
+  );
+}
+
+// ============================================================================
 // APP
 // ============================================================================
 
 const STORAGE_KEY = 'howl-read:last';
 
 export default function App() {
+  // Shareable read URLs: ?read={uuid} on the URL means render a public view
+  // of that saved read, bypassing the password gate. This is how someone
+  // sends a client a link to a finished READ.
+  const sharedReadId =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('read')
+      : null;
+  if (sharedReadId) {
+    return <SharedReadView id={sharedReadId} />;
+  }
+  return <MainApp />;
+}
+
+function MainApp() {
   const [view, setView] = useState('intake');
   const [stage, setStage] = useState(null);
   const [brandMeta, setBrandMeta] = useState(null);
@@ -2474,6 +2822,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | { error: string }
+  const [savedReadId, setSavedReadId] = useState(null);
   const [duplicateExisting, setDuplicateExisting] = useState(null);
   const [pendingMeta, setPendingMeta] = useState(null);
 
@@ -2557,7 +2906,7 @@ export default function App() {
           max_tokens: 10000,
           temperature: 0,
           useWebSearch: true,
-          webSearchMaxUses: 8,
+          webSearchMaxUses: 10,
         }),
       });
 
@@ -2594,10 +2943,12 @@ export default function App() {
       // Persist to Supabase in the background. Don't block the report on it.
       if (supabaseEnabled) {
         setSaveStatus('saving');
+        setSavedReadId(null);
         saveRead(meta, normalized)
           .then((result) => {
             if (result.ok) {
               setSaveStatus('saved');
+              if (result.data?.id) setSavedReadId(result.data.id);
             } else {
               setSaveStatus({
                 error: supabaseConnectionHelp(result.reason),
@@ -2610,6 +2961,7 @@ export default function App() {
           });
       } else {
         setSaveStatus(null);
+        setSavedReadId(null);
       }
 
       setView('report');
@@ -2628,6 +2980,7 @@ export default function App() {
     setBrandMeta(null);
     setError('');
     setSaveStatus(null);
+    setSavedReadId(null);
     setDuplicateExisting(null);
     setPendingMeta(null);
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
@@ -2641,6 +2994,7 @@ export default function App() {
     setView('running');
     setStage('load');
     setBrandMeta(row.brand_meta || { brandName: row.brand_name });
+    setSavedReadId(row.id); // for share link
     const full = await fetchReadById(row.id);
     if (!full || !full.report) {
       setError('Could not load that saved READ.');
@@ -2650,6 +3004,7 @@ export default function App() {
     }
     setBrandMeta(full.brand_meta);
     setReport(full.report);
+    setSaveStatus('saved'); // it's already saved
     setView('report');
     setStage(null);
   }
@@ -2729,6 +3084,7 @@ export default function App() {
           onReset={reset}
           brandMeta={brandMeta}
           saveStatus={saveStatus}
+          savedReadId={savedReadId}
         />
       )}
       {view === 'error' && <ErrorScreen error={error} onBack={reset} />}

@@ -120,6 +120,8 @@ export async function fetchReadById(id) {
 
 // Normalize a URL for comparison: strip protocol, www, trailing slash, lowercase.
 // "https://www.patagonia.com/" → "patagonia.com"
+// Kept as a general utility even after removing duplicate detection — useful
+// for share-link generation and any future URL-matching features.
 export function normalizeUrl(url) {
   if (!url) return '';
   return String(url)
@@ -128,48 +130,7 @@ export function normalizeUrl(url) {
     .replace(/^https?:\/\//, '')
     .replace(/^www\./, '')
     .replace(/\/+$/, '')
-    .split(/[?#]/)[0]; // drop query and fragment
-}
-
-// Look for an existing read matching the given brand name or URL.
-// Returns the most recent matching record, or null if none.
-// Match rules: case-insensitive exact brand name match, OR matching
-// normalized URL (with or without protocol / www / trailing slash).
-export async function findExistingRead(brandName, websiteUrl) {
-  if (!supabase) return null;
-  const name = (brandName || '').trim();
-  const normTarget = normalizeUrl(websiteUrl);
-
-  // First pass: exact name match (case-insensitive).
-  if (name) {
-    const { data, error } = await supabase
-      .from('reads')
-      .select('id, created_at, brand_name, website_url, category, business_model, overall_score, verdict, brand_meta')
-      .ilike('brand_name', name)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (!error && data && data.length > 0) return data[0];
-  }
-
-  // Second pass: URL match. Use the longest distinctive part of the
-  // normalized URL as the search seed, then verify normalized equality.
-  if (normTarget) {
-    const seed = normTarget.replace(/\..*$/, ''); // domain root, e.g. "patagonia"
-    if (seed) {
-      const { data, error } = await supabase
-        .from('reads')
-        .select('id, created_at, brand_name, website_url, category, business_model, overall_score, verdict, brand_meta')
-        .ilike('website_url', `%${seed}%`)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (!error && data) {
-        const match = data.find((r) => normalizeUrl(r.website_url) === normTarget);
-        if (match) return match;
-      }
-    }
-  }
-
-  return null;
+    .split(/[?#]/)[0];
 }
 
 export async function deleteRead(id) {
