@@ -104,6 +104,38 @@ export async function fetchRecentReads(limit = 30) {
   return { ok: true, data: data || [] };
 }
 
+// Quadrant view: fetch reads with their belief data pulled from the report
+// JSONB column. Belief is a small nested object (~1KB), so this is cheap
+// compared to fetching full reports. The PostgREST arrow syntax `report->belief`
+// returns just the belief sub-tree, aliased to `belief` on the row.
+export async function fetchReadsForQuadrant(limit = 500) {
+  if (!supabase) return { ok: false, reason: 'supabase-disabled', data: [] };
+  const { data, error } = await supabase
+    .from('reads')
+    .select('id, created_at, brand_name, website_url, category, overall_score, verdict, belief:report->belief')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('[HOWL READ] fetchReadsForQuadrant failed:', error);
+    return { ok: false, reason: classifyError(error), message: error.message, data: [] };
+  }
+  // Compute belief_avg client-side from the three dimensions
+  const enriched = (data || []).map((r) => ({
+    ...r,
+    belief_avg: computeBeliefAvg(r.belief),
+  }));
+  return { ok: true, data: enriched };
+}
+
+function computeBeliefAvg(belief) {
+  if (!belief || typeof belief !== 'object') return null;
+  const scores = ['TRUSTED', 'PROVEN', 'PARTICIPATORY']
+    .map((k) => belief[k]?.score)
+    .filter((s) => typeof s === 'number');
+  if (scores.length === 0) return null;
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+}
+
 export async function fetchReadById(id) {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -131,6 +163,47 @@ export function normalizeUrl(url) {
     .replace(/^www\./, '')
     .replace(/\/+$/, '')
     .split(/[?#]/)[0];
+}
+
+// Look for an existing read matching the given brand name or URL.
+// Returns the most recent matching record, or null if none.
+// Match rules: case-insensitive exact brand-name match, OR matching
+// normalized URL (with or without protocol / www / trailing slash).
+export async function findExistingRead(brandName, websiteUrl) {
+  if (!supabase) return null;
+  const name = (brandName || '').trim();
+  const normTarget = normalizeUrl(websiteUrl);
+
+  // First pass: exact name match (case-insensitive)
+  if (name) {
+    const { data, error } = await supabase
+      .from('reads')
+      .select('id, created_at, brand_name, website_url, category, business_model, overall_score, verdict, brand_meta')
+      .ilike('brand_name', name)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (!error && data && data.length > 0) return data[0];
+  }
+
+  // Second pass: URL match. Use the longest distinctive part of the
+  // normalized URL as the search seed, then verify normalized equality.
+  if (normTarget) {
+    const seed = normTarget.replace(/\..*$/, '');
+    if (seed) {
+      const { data, error } = await supabase
+        .from('reads')
+        .select('id, created_at, brand_name, website_url, category, business_model, overall_score, verdict, brand_meta')
+        .ilike('website_url', `%${seed}%`)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!error && data) {
+        const match = data.find((r) => normalizeUrl(r.website_url) === normTarget);
+        if (match) return match;
+      }
+    }
+  }
+
+  return null;
 }
 
 export async function deleteRead(id) {

@@ -31,6 +31,8 @@ import {
   saveRead,
   fetchRecentReads,
   fetchReadById,
+  fetchReadsForQuadrant,
+  findExistingRead,
   deleteRead,
   supabaseEnabled,
   supabaseStatus,
@@ -56,6 +58,7 @@ import {
   X,
   Share2,
   Link as LinkIcon,
+  Grid2X2,
 } from 'lucide-react';
 
 // Auto-incremented on every build via scripts/bump-version.cjs.
@@ -684,6 +687,531 @@ function HistoryView({ onLoad, onRerun, onReset }) {
   );
 }
 
+// ============================================================================
+// QUADRANT VIEW — plots all saved reads on a 2D Signals vs Belief chart.
+// Each dot is a saved read, colored by category. Hover reveals brand details;
+// click loads that read. Category-toggle pills let you isolate slices.
+// ============================================================================
+
+function QuadrantView({ onLoad, onReset }) {
+  const [reads, setReads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hovered, setHovered] = useState(null);
+
+  // Set of category ids that are currently visible. Start with all on.
+  const [activeCategories, setActiveCategories] = useState(
+    () => new Set(CATEGORIES.map((c) => c.id))
+  );
+
+  useEffect(() => {
+    if (!supabaseEnabled) {
+      setLoading(false);
+      if (supabaseStatus === 'wrong-key-type') setError({ reason: 'wrong-key-type' });
+      else if (supabaseStatus === 'invalid-key') setError({ reason: 'invalid-key' });
+      return;
+    }
+    fetchReadsForQuadrant(500).then((result) => {
+      if (!result.ok) {
+        setError({ reason: result.reason, message: result.message });
+      } else {
+        setReads(result.data);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  // Only show reads that have BOTH overall_score and a belief_avg.
+  const plottable = useMemo(
+    () =>
+      reads.filter(
+        (r) =>
+          typeof r.overall_score === 'number' &&
+          typeof r.belief_avg === 'number' &&
+          activeCategories.has(r.category)
+      ),
+    [reads, activeCategories]
+  );
+
+  const totalWithBoth = useMemo(
+    () =>
+      reads.filter(
+        (r) => typeof r.overall_score === 'number' && typeof r.belief_avg === 'number'
+      ).length,
+    [reads]
+  );
+
+  const missingBelief = reads.length - totalWithBoth;
+
+  function toggleCategory(id) {
+    setActiveCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function showAllCategories() {
+    setActiveCategories(new Set(CATEGORIES.map((c) => c.id)));
+  }
+  function hideAllCategories() {
+    setActiveCategories(new Set());
+  }
+  function categoryColor(id) {
+    return CATEGORIES.find((c) => c.id === id)?.color || 'var(--howl-mute)';
+  }
+
+  // SVG plot geometry. The viewBox is fixed; CSS scales it responsively.
+  const VB_W = 760;
+  const VB_H = 560;
+  const PAD_L = 60;
+  const PAD_R = 40;
+  const PAD_T = 50;
+  const PAD_B = 60;
+  const plotX0 = PAD_L;
+  const plotX1 = VB_W - PAD_R;
+  const plotY0 = PAD_T;
+  const plotY1 = VB_H - PAD_B;
+  const plotW = plotX1 - plotX0;
+  const plotH = plotY1 - plotY0;
+  const midX = plotX0 + plotW / 2;
+  const midY = plotY0 + plotH / 2;
+
+  function toX(score) {
+    return plotX0 + (score / 100) * plotW;
+  }
+  function toY(belief) {
+    return plotY1 - (belief / 100) * plotH;
+  }
+
+  // Sort: hovered dot rendered last (on top). Otherwise newest on top.
+  const sortedForRender = useMemo(() => {
+    const arr = [...plottable];
+    arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    return arr;
+  }, [plottable]);
+
+  return (
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 howl-fadein">
+      {/* Page header */}
+      <div className="mb-6">
+        <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
+          The Quadrant
+        </div>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <h1 className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1 }}>
+            Volume vs Belief.
+          </h1>
+          <button onClick={onReset} className="btn-howl">
+            <RefreshCw size={14} />
+            Run a new READ
+          </button>
+        </div>
+        <p className="text-sm mt-3" style={{ color: 'var(--howl-ink-soft)', maxWidth: '60ch' }}>
+          Every saved Read plotted by its signal volume (how loudly it carries its story) and audience belief (how well the story lands). Hover any dot to see the brand. Click to open the Read.
+        </p>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div
+          className="card-howl p-5 flex items-center gap-3"
+          style={{ color: 'var(--howl-mute)' }}
+        >
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-sm">Loading the archive.</span>
+        </div>
+      )}
+
+      {/* Error */}
+      {!loading && error && (
+        <div
+          className="card-howl p-5 mb-6"
+          style={{ borderColor: 'var(--howl-weak)', background: 'rgba(183, 53, 37, 0.04)' }}
+        >
+          <div className="flex items-start gap-2 mb-2">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: 'var(--howl-weak)' }} />
+            <div className="howl-stamp" style={{ fontSize: '0.875rem', color: 'var(--howl-weak)' }}>
+              Could not load history
+            </div>
+          </div>
+          <p className="text-sm" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}>
+            {supabaseConnectionHelp(error.reason)}
+          </p>
+          {error.message && (
+            <p className="text-xs font-mono mt-2" style={{ color: 'var(--howl-mute)' }}>
+              {error.message}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && !error && totalWithBoth === 0 && (
+        <div className="card-howl p-7" style={{ background: 'var(--howl-bone)' }}>
+          <p className="text-base mb-2" style={{ color: 'var(--howl-ink-soft)' }}>
+            No reads in the archive yet.
+          </p>
+          <p className="text-sm" style={{ color: 'var(--howl-mute)' }}>
+            Run a few Reads. They will appear here, plotted by their volume and credibility scores.
+          </p>
+        </div>
+      )}
+
+      {/* The chart + filter */}
+      {!loading && !error && totalWithBoth > 0 && (
+        <>
+          {/* Category filter pills */}
+          <div
+            className="card-howl p-4 mb-5"
+            style={{ background: 'var(--howl-bone)' }}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <div
+                className="howl-stamp"
+                style={{ fontSize: '0.75rem', letterSpacing: '0.12em', color: 'var(--howl-mute)' }}
+              >
+                Show categories
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={showAllCategories}
+                  className="btn-ghost"
+                  style={{ padding: '4px 10px', fontSize: '0.6875rem' }}
+                >
+                  Show all
+                </button>
+                <button
+                  onClick={hideAllCategories}
+                  className="btn-ghost"
+                  style={{ padding: '4px 10px', fontSize: '0.6875rem' }}
+                >
+                  Hide all
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((c) => {
+                const active = activeCategories.has(c.id);
+                const count = reads.filter(
+                  (r) => r.category === c.id && typeof r.belief_avg === 'number'
+                ).length;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => toggleCategory(c.id)}
+                    title={`${c.name} (${count})`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 10px',
+                      fontSize: '0.6875rem',
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      fontFamily: 'Anton, Inter, sans-serif',
+                      cursor: 'pointer',
+                      background: active ? c.color : 'transparent',
+                      color: active ? '#fff' : 'var(--howl-ink-soft)',
+                      border: `1.5px solid ${active ? c.color : 'var(--howl-cream-deep)'}`,
+                      opacity: count === 0 ? 0.4 : 1,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        background: c.color,
+                        border: active ? '1px solid #fff' : 'none',
+                      }}
+                    />
+                    {c.name}
+                    <span style={{ opacity: 0.7 }}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Plot summary */}
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
+              Plotting {plottable.length} of {totalWithBoth} reads with belief data
+              {missingBelief > 0 ? ` · ${missingBelief} read${missingBelief === 1 ? '' : 's'} without belief data hidden` : ''}
+            </p>
+          </div>
+
+          {/* The Quadrant chart */}
+          <div
+            className="card-howl"
+            style={{ background: 'var(--howl-bone)', padding: '12px sm:24px', overflow: 'hidden' }}
+          >
+            <svg
+              viewBox={`0 0 ${VB_W} ${VB_H}`}
+              width="100%"
+              style={{ display: 'block', height: 'auto' }}
+              aria-label="Quadrant chart: signals score on X-axis, belief score on Y-axis"
+            >
+              {/* Quadrant background tints */}
+              <rect x={plotX0} y={plotY0} width={plotW / 2} height={plotH / 2}
+                    fill="var(--howl-cream)" fillOpacity={0.4} />
+              <rect x={midX} y={plotY0} width={plotW / 2} height={plotH / 2}
+                    fill="var(--howl-cream)" fillOpacity={0.6} />
+              <rect x={plotX0} y={midY} width={plotW / 2} height={plotH / 2}
+                    fill="var(--howl-cream)" fillOpacity={0.6} />
+              <rect x={midX} y={midY} width={plotW / 2} height={plotH / 2}
+                    fill="var(--howl-cream)" fillOpacity={0.4} />
+
+              {/* Gridlines at 25/75 */}
+              {[25, 75].map((v) => (
+                <g key={`gx${v}`}>
+                  <line
+                    x1={toX(v)} y1={plotY0} x2={toX(v)} y2={plotY1}
+                    stroke="var(--howl-ink)" strokeOpacity={0.06} strokeDasharray="2 4"
+                  />
+                  <line
+                    x1={plotX0} y1={toY(v)} x2={plotX1} y2={toY(v)}
+                    stroke="var(--howl-ink)" strokeOpacity={0.06} strokeDasharray="2 4"
+                  />
+                </g>
+              ))}
+
+              {/* Mid-cross */}
+              <line x1={midX} y1={plotY0} x2={midX} y2={plotY1}
+                    stroke="var(--howl-ink)" strokeOpacity={0.25} strokeWidth={1} />
+              <line x1={plotX0} y1={midY} x2={plotX1} y2={midY}
+                    stroke="var(--howl-ink)" strokeOpacity={0.25} strokeWidth={1} />
+
+              {/* Outer frame */}
+              <rect x={plotX0} y={plotY0} width={plotW} height={plotH}
+                    fill="none" stroke="var(--howl-ink)" strokeWidth={1.5} />
+
+              {/* Axis labels */}
+              <text
+                x={(plotX0 + plotX1) / 2}
+                y={plotY1 + 36}
+                textAnchor="middle"
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 14,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-ink)',
+                }}
+              >
+                Signals score →
+              </text>
+              <text
+                x={-((plotY0 + plotY1) / 2)}
+                y={20}
+                transform="rotate(-90)"
+                textAnchor="middle"
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 14,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-ink)',
+                }}
+              >
+                Belief score →
+              </text>
+
+              {/* Tick labels */}
+              {[0, 50, 100].map((v) => (
+                <text
+                  key={`tx${v}`}
+                  x={toX(v)} y={plotY1 + 16}
+                  textAnchor="middle"
+                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fill: 'var(--howl-mute)' }}
+                >
+                  {v}
+                </text>
+              ))}
+              {[0, 50, 100].map((v) => (
+                <text
+                  key={`ty${v}`}
+                  x={plotX0 - 8} y={toY(v) + 3}
+                  textAnchor="end"
+                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fill: 'var(--howl-mute)' }}
+                >
+                  {v}
+                </text>
+              ))}
+
+              {/* Quadrant strategic labels, set into the corners */}
+              <text
+                x={plotX0 + 10} y={plotY0 + 18}
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 12,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-ink)',
+                  opacity: 0.35,
+                }}
+              >
+                Underrated
+              </text>
+              <text
+                x={plotX1 - 10} y={plotY0 + 18}
+                textAnchor="end"
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 12,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-coral)',
+                  opacity: 0.6,
+                }}
+              >
+                Howling
+              </text>
+              <text
+                x={plotX0 + 10} y={plotY1 - 10}
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 12,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-ink)',
+                  opacity: 0.35,
+                }}
+              >
+                Whispering
+              </text>
+              <text
+                x={plotX1 - 10} y={plotY1 - 10}
+                textAnchor="end"
+                style={{
+                  fontFamily: 'Anton, Inter, sans-serif',
+                  fontSize: 12,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fill: 'var(--howl-weak)',
+                  opacity: 0.6,
+                }}
+              >
+                Shouting without trust
+              </text>
+
+              {/* Dots + always-on labels */}
+              {sortedForRender.map((r) => {
+                const x = toX(r.overall_score);
+                const y = toY(r.belief_avg);
+                const color = categoryColor(r.category);
+                const isHovered = hovered?.id === r.id;
+                return (
+                  <g
+                    key={r.id}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHovered(r)}
+                    onMouseLeave={() => setHovered(null)}
+                    onClick={() => onLoad(r)}
+                  >
+                    {/* Larger invisible hit-target for hover and click */}
+                    <circle cx={x} cy={y} r={10} fill="transparent" />
+                    {/* The dot */}
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isHovered ? 6 : 3.5}
+                      fill={color}
+                      stroke="var(--howl-cream)"
+                      strokeWidth={isHovered ? 2 : 1.25}
+                    />
+                    {/* Brand label */}
+                    <text
+                      x={x + 6}
+                      y={y + 3}
+                      style={{
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: isHovered ? 12 : 9.5,
+                        fontWeight: isHovered ? 700 : 400,
+                        fill: isHovered ? 'var(--howl-ink)' : 'var(--howl-ink-soft)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {r.brand_name}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Hover tooltip (HTML inside foreignObject for clean styling) */}
+              {hovered && (() => {
+                const x = toX(hovered.overall_score);
+                const y = toY(hovered.belief_avg);
+                const tipW = 220;
+                const tipH = 76;
+                // Position tooltip above-right of dot, flip if near edge
+                const tipX = x + tipW > plotX1 ? x - tipW - 12 : x + 12;
+                const tipY = y - tipH - 12 < plotY0 ? y + 12 : y - tipH - 12;
+                const catName =
+                  CATEGORIES.find((c) => c.id === hovered.category)?.name || hovered.category;
+                const dateStr = new Date(hovered.created_at).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                });
+                return (
+                  <foreignObject
+                    x={tipX}
+                    y={tipY}
+                    width={tipW}
+                    height={tipH}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <div
+                      xmlns="http://www.w3.org/1999/xhtml"
+                      style={{
+                        background: 'var(--howl-cream)',
+                        border: '1.5px solid var(--howl-ink)',
+                        padding: '8px 10px',
+                        fontFamily: 'Inter, sans-serif',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: 'Anton, Inter, sans-serif',
+                          fontSize: 14,
+                          letterSpacing: '0.02em',
+                          lineHeight: 1.1,
+                          marginBottom: 4,
+                          color: 'var(--howl-ink)',
+                        }}
+                      >
+                        {hovered.brand_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.1em',
+                          color: 'var(--howl-mute)',
+                          marginBottom: 4,
+                        }}
+                      >
+                        {catName} · {dateStr}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--howl-ink-soft)' }}>
+                        <span style={{ fontWeight: 600 }}>Signals</span> {hovered.overall_score}
+                        {'   '}·{'   '}
+                        <span style={{ fontWeight: 600 }}>Belief</span> {hovered.belief_avg}
+                      </div>
+                    </div>
+                  </foreignObject>
+                );
+              })()}
+            </svg>
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
+
 function supabaseConnectionHelp(reason) {
   switch (reason) {
     case 'wrong-key-type':
@@ -815,7 +1343,7 @@ function DuplicateWarning({ existing, onViewExisting, onProceed, onCancel }) {
   );
 }
 
-function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
+function Header({ onReset, showReset, onSignOut, onHistory, showHistory, onQuadrant, showQuadrant }) {
   return (
     <header
       style={{
@@ -851,6 +1379,17 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
             >
               <Clock size={14} />
               <span className="hidden sm:inline">Previous Reads</span>
+            </button>
+          )}
+          {showQuadrant && (
+            <button
+              onClick={onQuadrant}
+              className="btn-ghost"
+              title="The Quadrant"
+              aria-label="The Quadrant"
+            >
+              <Grid2X2 size={14} />
+              <span className="hidden sm:inline">The Quadrant</span>
             </button>
           )}
           {showReset && (
@@ -3019,6 +3558,8 @@ function MainApp() {
         onSignOut={signOut}
         onHistory={() => setView('history')}
         showHistory={historyAvailable && view !== 'history'}
+        onQuadrant={() => setView('quadrant')}
+        showQuadrant={historyAvailable && view !== 'quadrant'}
       />
       {view === 'intake' && (
         <IntakeForm
@@ -3039,6 +3580,12 @@ function MainApp() {
         <HistoryView
           onLoad={loadFromHistory}
           onRerun={rerunFromHistory}
+          onReset={reset}
+        />
+      )}
+      {view === 'quadrant' && (
+        <QuadrantView
+          onLoad={loadFromHistory}
           onReset={reset}
         />
       )}

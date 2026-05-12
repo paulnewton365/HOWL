@@ -109,25 +109,25 @@ export const SURFACE_IDS = SURFACES.map(s => s.id);
 // ============================================================================
 
 export const CATEGORIES = [
-  { id: 'tech',         name: 'Technology / SaaS' },
-  { id: 'cpg',          name: 'Consumer Goods / CPG' },
-  { id: 'retail',       name: 'Retail / E-commerce' },
-  { id: 'fashion',      name: 'Fashion / Apparel' },
-  { id: 'food-bev',     name: 'Food & Beverage' },
-  { id: 'health',       name: 'Health & Wellness' },
-  { id: 'finance',      name: 'Finance / Fintech' },
-  { id: 'media',        name: 'Media / Entertainment' },
-  { id: 'energy',       name: 'Energy / Utilities' },
-  { id: 'mobility',     name: 'Mobility / Automotive' },
-  { id: 'b2b-services', name: 'B2B / Professional Services' },
-  { id: 'agency',       name: 'Marketing / Agency' },
-  { id: 'hospitality',  name: 'Hospitality / Travel' },
-  { id: 'real-estate',  name: 'Real Estate / Property' },
-  { id: 'industrial',   name: 'Manufacturing / Industrial' },
-  { id: 'education',    name: 'Education' },
-  { id: 'impact',       name: 'Sustainability / Impact / Climate' },
-  { id: 'nonprofit',    name: 'Nonprofit / Mission' },
-  { id: 'other',        name: 'Other' },
+  { id: 'tech',         name: 'Technology / SaaS',            color: '#F47245' }, // coral
+  { id: 'cpg',          name: 'Consumer Goods / CPG',         color: '#6B8E5A' }, // sage
+  { id: 'retail',       name: 'Retail / E-commerce',          color: '#D85726' }, // deep coral
+  { id: 'fashion',      name: 'Fashion / Apparel',            color: '#A0537B' }, // plum
+  { id: 'food-bev',     name: 'Food & Beverage',              color: '#C29469' }, // tan
+  { id: 'health',       name: 'Health & Wellness',            color: '#4A7BA1' }, // steel blue
+  { id: 'finance',      name: 'Finance / Fintech',            color: '#2E2E2E' }, // charcoal
+  { id: 'media',        name: 'Media / Entertainment',        color: '#B57E2C' }, // mustard
+  { id: 'energy',       name: 'Energy / Utilities',           color: '#6E8F8F' }, // slate teal
+  { id: 'mobility',     name: 'Mobility / Automotive',        color: '#8B3A1F' }, // rust
+  { id: 'b2b-services', name: 'B2B / Professional Services',  color: '#5C5048' }, // warm gray
+  { id: 'agency',       name: 'Marketing / Agency',           color: '#BE5E76' }, // rose
+  { id: 'hospitality',  name: 'Hospitality / Travel',         color: '#946241' }, // caramel
+  { id: 'real-estate',  name: 'Real Estate / Property',       color: '#4F644E' }, // forest
+  { id: 'industrial',   name: 'Manufacturing / Industrial',   color: '#36454F' }, // dark slate
+  { id: 'education',    name: 'Education',                    color: '#7B6FAB' }, // lavender
+  { id: 'impact',       name: 'Sustainability / Impact / Climate', color: '#3D7048' }, // impact green
+  { id: 'nonprofit',    name: 'Nonprofit / Mission',          color: '#835E32' }, // bronze
+  { id: 'other',        name: 'Other',                        color: '#8B7E5E' }, // sand
 ];
 
 export const BUSINESS_MODELS = [
