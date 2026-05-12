@@ -150,6 +150,24 @@ export async function fetchReadById(id) {
   return data;
 }
 
+// Update an existing read's category. Other metadata fields (e.g.
+// business_model) could be added the same way. RLS + column grants on the
+// reads table ensure anon clients can only update category and business_model,
+// not the report content itself.
+export async function updateReadCategory(id, category) {
+  if (!supabase) return { ok: false, reason: 'supabase-disabled' };
+  if (!id || !category) return { ok: false, reason: 'invalid-input' };
+  const { error } = await supabase
+    .from('reads')
+    .update({ category })
+    .eq('id', id);
+  if (error) {
+    console.error('[HOWL READ] updateReadCategory failed:', error);
+    return { ok: false, reason: classifyError(error), message: error.message };
+  }
+  return { ok: true };
+}
+
 // Normalize a URL for comparison: strip protocol, www, trailing slash, lowercase.
 // "https://www.patagonia.com/" → "patagonia.com"
 // Kept as a general utility even after removing duplicate detection — useful

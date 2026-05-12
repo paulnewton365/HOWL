@@ -2,8 +2,7 @@
 -- Run this in your Supabase project's SQL Editor.
 -- Project Settings → SQL Editor → New query → paste → Run.
 --
--- Safe to re-run: every policy is dropped and recreated. If you previously
--- had the "anon delete" policy granted, this script will remove it.
+-- Safe to re-run: every policy is dropped and recreated.
 
 create table if not exists reads (
   id              uuid primary key default gen_random_uuid(),
@@ -23,19 +22,32 @@ create index if not exists reads_created_at_idx on reads (created_at desc);
 -- Row Level Security.
 -- The app is gated by an application-level password (ACCESS_PASSWORD).
 -- The anon key is exposed in the client bundle, so we keep RLS enabled and
--- open the table to anon read + insert ONLY. Deletes are admin-only and
--- flow through the /api/delete-read server endpoint, which uses the
--- service_role key to bypass RLS after verifying the caller's password
--- AND email against ADMIN_EMAIL.
+-- carefully control what anon can do:
+--   * SELECT (read history)               — allowed for all rows
+--   * INSERT (save new reads)             — allowed
+--   * UPDATE category + business_model    — allowed, COLUMN-LEVEL restricted
+--   * UPDATE any other column             — blocked by GRANT
+--   * DELETE                              — blocked entirely; routed through
+--                                           /api/delete-read with service_role
+--                                           after admin email check
 alter table reads enable row level security;
 
--- Drop any existing policies first. The anon delete policy is intentionally
--- removed here as part of the admin-permissions migration.
 drop policy if exists "anon read"   on reads;
 drop policy if exists "anon insert" on reads;
+drop policy if exists "anon update" on reads;
 drop policy if exists "anon delete" on reads;
 
 create policy "anon read"   on reads for select using (true);
 create policy "anon insert" on reads for insert with check (true);
--- No anon delete policy. Deletes go through /api/delete-read with the
--- service_role key, which bypasses RLS for admin operations only.
+create policy "anon update" on reads for update using (true) with check (true);
+
+-- Column-level grants: anon can UPDATE only category and business_model.
+-- Other columns (brand_name, report, overall_score, etc.) are locked even
+-- though the row-level policy allows UPDATE — Postgres requires BOTH.
+-- This lets the team correct miscategorised reads without exposing scores
+-- or report data to tampering.
+revoke update on reads from anon;
+grant update (category, business_model) on reads to anon;
+
+-- No anon delete policy. Deletes flow through /api/delete-read with the
+-- service_role key, after verifying admin email server-side.

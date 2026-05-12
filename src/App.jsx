@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { track } from '@vercel/analytics';
 import {
   SIGNALS,
@@ -34,6 +34,7 @@ import {
   fetchReadsForQuadrant,
   findExistingRead,
   deleteRead,
+  updateReadCategory,
   supabaseEnabled,
   supabaseStatus,
   supabaseDebug,
@@ -59,6 +60,7 @@ import {
   Share2,
   Link as LinkIcon,
   Grid2X2,
+  Pencil,
 } from 'lucide-react';
 
 // Auto-incremented on every build via scripts/bump-version.cjs.
@@ -333,6 +335,8 @@ function HistoryView({ onLoad, onRerun, onReset }) {
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [savedCategoryFlash, setSavedCategoryFlash] = useState(null);
 
   // Filter + sort state
   const [search, setSearch] = useState('');
@@ -615,12 +619,13 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                   day: 'numeric',
                 });
                 const category = CATEGORIES.find((c) => c.id === r.category)?.name;
+                const isEditing = editingCategoryId === r.id;
                 return (
                   <div
                     key={r.id}
                     className="card-howl flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-[var(--howl-bone)] transition-colors"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => onLoad(r)}
+                    style={{ cursor: isEditing ? 'default' : 'pointer' }}
+                    onClick={() => { if (!isEditing) onLoad(r); }}
                   >
                     <div className="flex-1 min-w-0">
                       <div
@@ -629,12 +634,74 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                       >
                         {r.brand_name}
                       </div>
-                      <div
-                        className="text-[11px] tracking-wide uppercase mt-1 truncate"
-                        style={{ color: 'var(--howl-mute)' }}
-                      >
-                        {dateStr}{category ? ` · ${category}` : ''}
-                      </div>
+                      {isEditing ? (
+                        <div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                          <span
+                            className="text-[11px] tracking-wide uppercase shrink-0"
+                            style={{ color: 'var(--howl-mute)' }}
+                          >
+                            {dateStr} ·
+                          </span>
+                          <select
+                            value={r.category || ''}
+                            onChange={async (e) => {
+                              const newCat = e.target.value;
+                              if (!newCat || newCat === r.category) {
+                                setEditingCategoryId(null);
+                                return;
+                              }
+                              const result = await updateReadCategory(r.id, newCat);
+                              if (result.ok) {
+                                setReads((prev) =>
+                                  prev.map((row) =>
+                                    row.id === r.id ? { ...row, category: newCat } : row
+                                  )
+                                );
+                                setSavedCategoryFlash(r.id);
+                                setTimeout(() => setSavedCategoryFlash(null), 1400);
+                              } else {
+                                setDeleteError(result.message || 'Could not update category.');
+                              }
+                              setEditingCategoryId(null);
+                            }}
+                            onBlur={() => setEditingCategoryId(null)}
+                            autoFocus
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              border: '1px solid var(--howl-ink)',
+                              background: 'var(--howl-cream)',
+                              fontFamily: 'Inter, sans-serif',
+                              letterSpacing: '0.05em',
+                              textTransform: 'uppercase',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {CATEGORIES.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div
+                          className="text-[11px] tracking-wide uppercase mt-1 truncate flex items-center gap-2"
+                          style={{ color: 'var(--howl-mute)' }}
+                        >
+                          <span className="truncate">
+                            {dateStr}{category ? ` · ${category}` : ''}
+                          </span>
+                          {savedCategoryFlash === r.id && (
+                            <span
+                              className="shrink-0"
+                              style={{ color: 'var(--howl-strong)', fontWeight: 600 }}
+                            >
+                              ✓ saved
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div
                       className="font-display tabular-nums shrink-0"
@@ -645,6 +712,23 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                     <div className="shrink-0 hide-on-mobile">
                       <VerdictStamp score={r.overall_score} />
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCategoryId(isEditing ? null : r.id);
+                      }}
+                      className="shrink-0"
+                      title={isEditing ? 'Cancel' : 'Edit category'}
+                      style={{
+                        padding: '6px 8px',
+                        color: isEditing ? 'var(--howl-coral)' : 'var(--howl-mute)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1684,226 +1768,266 @@ function RunningRead({ brandName, stage }) {
 // Outer edge = sum of all surface scores. Inner band labels follow segment angle.
 // ============================================================================
 
-// Radial chart: one spoke per signal. Each spoke stacks 4 surface segments
-// (web, social, reputation, earned) outward from the center, with visible
-// radial gaps between them. After the last surface, a pale outlined segment
-// shows the room to grow up to a full howl across all surfaces.
-function RadialScoreBars({ signals, size = 520 }) {
-  // Animate the fill (and the displayed number) in on mount
-  const [progress, setProgress] = useState(0);
+// Retro audio equalizer visualization of READ scores. 24 bars total: each of
+// the 6 signals gets 4 LED bars (one per surface). Each bar's height is its
+// surface score. Bars animate in with a damped-spring response and stagger
+// across the chart, like a VU meter coming alive. The dark screen background
+// and discrete LED segments make it read like vintage music equipment.
+function SignalEqualizer({ signals }) {
+  // ----- Geometry -----
+  const VB_W = 600;
+  const VB_H = 320;
+  const BAR_W = 14;
+  const BAR_INNER_W = 12;
+  const SMALL_GAP = 1.5;  // within a signal group
+  const LARGE_GAP = 14;   // between signal groups
+  const N_LEDS = 20;
+  const LED_H = 6;
+  const LED_GAP = 2;
+  const LED_PITCH = LED_H + LED_GAP;
+
+  const N_SIGNALS = SIGNALS.length;
+  const N_SURFACES = SURFACES.length;
+  const GROUP_W = N_SURFACES * BAR_W + (N_SURFACES - 1) * SMALL_GAP;
+  const TOTAL_W = N_SIGNALS * GROUP_W + (N_SIGNALS - 1) * LARGE_GAP;
+  const LEFT_PAD = (VB_W - TOTAL_W) / 2;
+
+  const BAR_BOTTOM = 232;
+
+  // ----- Animation -----
+  const DURATION = 1500;       // per-bar spring duration
+  const STAGGER_SIG = 110;     // ms between signal groups
+  const STAGGER_SURF = 32;     // ms between surfaces within a group
+  const SETTLE_BUFFER = 250;
+  const TOTAL_DURATION =
+    DURATION + (N_SIGNALS - 1) * STAGGER_SIG +
+    (N_SURFACES - 1) * STAGGER_SURF + SETTLE_BUFFER;
+
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(null);
+
   useEffect(() => {
-    const startTime = performance.now();
-    const duration = 900; // ms
-    let rafId;
-    function tick(now) {
-      const elapsed = now - startTime;
-      const t = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-      setProgress(eased);
-      if (t < 1) rafId = requestAnimationFrame(tick);
+    startRef.current = performance.now();
+    let raf;
+    function loop(now) {
+      const elapsed = now - startRef.current;
+      if (elapsed < TOTAL_DURATION) {
+        setTick(elapsed);
+        raf = requestAnimationFrame(loop);
+      } else {
+        setTick(TOTAL_DURATION);
+      }
     }
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const innerR = size * 0.12;
-  const outerR = size * 0.40;
-  const labelR = size * 0.45;
-  const padX = 90;
-  const segAngle = 360 / SIGNALS.length;
-  const gapDeg = 6;
-  const arcDeg = segAngle - gapDeg;
-
-  // Radial spacing math: 4 surfaces stack outward, max possible total = 400
-  // (4 surfaces × 100). When all surfaces are at 100, the surfaces + internal
-  // gaps + final gap fill the spoke to the outer radius exactly.
-  const radialGap = 3;
-  const gapBeforeOutline = 4; // a slightly larger gap before "room to grow"
-  const totalGaps = 3 * radialGap + gapBeforeOutline; // 3 between surfaces + 1 to outline
-  const spokeRange = outerR - innerR - totalGaps;
-  const scale = spokeRange / 400; // surface score × scale = radial length
-
-  function polar(angleDeg, r) {
-    const a = (angleDeg - 90) * (Math.PI / 180);
-    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+  // Underdamped spring response to a step input. Produces the natural
+  // overshoot-and-oscillate-and-settle motion of a real VU meter.
+  function spring(t, target) {
+    if (t <= 0) return 0;
+    if (t >= 1) return target;
+    const zeta = 0.2;          // damping ratio (under 1 = oscillates)
+    const wn = 12;             // natural frequency
+    const wd = wn * Math.sqrt(1 - zeta * zeta);
+    return target * (1 - Math.exp(-zeta * wn * t) *
+      (Math.cos(wd * t) + (zeta * wn / wd) * Math.sin(wd * t)));
   }
 
-  function annularSectorPath(startDeg, endDeg, rIn, rOut) {
-    const [x1, y1] = polar(startDeg, rOut);
-    const [x2, y2] = polar(endDeg, rOut);
-    const [x3, y3] = polar(endDeg, rIn);
-    const [x4, y4] = polar(startDeg, rIn);
-    const largeArc = endDeg - startDeg > 180 ? 1 : 0;
-    return [
-      `M ${x1} ${y1}`,
-      `A ${rOut} ${rOut} 0 ${largeArc} 1 ${x2} ${y2}`,
-      `L ${x3} ${y3}`,
-      `A ${rIn} ${rIn} 0 ${largeArc} 0 ${x4} ${y4}`,
-      'Z',
-    ].join(' ');
-  }
+  // ----- Palette tuned for the dark "screen" background -----
+  const SCREEN_BG = '#1A1611';
+  const UNLIT = '#2D2620';
+  // EARNED's ink #0A0A0A vanishes on dark; substitute with bone so the bar
+  // reads. Other surface colors have enough chroma to survive against dark.
+  const SURFACE_COLOR_DARK = {
+    WEBSITE: '#D85726',
+    SOCIAL: '#F47245',
+    REPUTATION: '#C29469',
+    EARNED: '#FAF7EF',
+  };
 
-  function labelAnchor(angleDeg) {
-    const rad = (angleDeg - 90) * (Math.PI / 180);
-    const cosVal = Math.cos(rad);
-    if (Math.abs(cosVal) < 0.2) return 'middle';
-    return cosVal > 0 ? 'start' : 'end';
-  }
-
-  function tierColor(score) {
-    if (score >= 70) return 'var(--howl-strong)';
-    if (score >= 40) return 'var(--howl-mid)';
-    return 'var(--howl-weak)';
+  // Tier color for the signal mean number above each group.
+  // Mirrors VU semantics: dim coral at the bottom, tan in the middle,
+  // bone-bright at the peak.
+  function tierColorDark(score) {
+    if (score >= 70) return '#FAF7EF';
+    if (score >= 40) return '#C29469';
+    return '#C24A2A';
   }
 
   return (
     <svg
-      viewBox={`${-padX} 0 ${size + 2 * padX} ${size}`}
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
       width="100%"
-      style={{ maxWidth: size + 2 * padX, height: 'auto', display: 'block', margin: '0 auto' }}
-      aria-label="Radial chart of HOWL READ scores. Each spoke is a signal with four stacked surface scores and a pale segment showing room to grow."
+      style={{ maxWidth: VB_W, height: 'auto', display: 'block', margin: '0 auto' }}
+      aria-label="Equalizer chart of READ scores. Twenty-four bars across six signals and four surfaces."
     >
       <defs>
-        {/* Hand-drawn wobble. Applied to the "room to grow" outlines and the
-            freehand O at the center, so the loose / aspirational parts of the
-            chart echo the HOWL identity. The filled surface segments stay
-            clean so the actual data reads precisely. */}
-        <filter id="howl-rough" x="-10%" y="-10%" width="120%" height="120%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.025"
-            numOctaves="2"
-            seed="4"
-          />
+        {/* Same wobble filter the rest of the report uses, so the freehand O
+            sitting on top of the screen reads as a brand mark, not a logo. */}
+        <filter id="howl-rough-eq" x="-15%" y="-15%" width="130%" height="130%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="4" />
           <feDisplacementMap in="SourceGraphic" scale="3" />
         </filter>
       </defs>
 
-      {/* Each signal: stacked surface segments + outline gap segment */}
-      {SIGNALS.map((sig, i) => {
-        const startAngle = i * segAngle + gapDeg / 2;
-        const endAngle = startAngle + arcDeg;
-        const midAngle = (startAngle + endAngle) / 2;
+      {/* Dark screen */}
+      <rect x={0} y={0} width={VB_W} height={VB_H} fill={SCREEN_BG} rx={3} />
+
+      {/* Top-left stamp */}
+      <text
+        x={22}
+        y={28}
+        style={{
+          fontFamily: 'Anton, Inter, sans-serif',
+          fontSize: 11,
+          letterSpacing: '0.18em',
+          fill: '#FAF7EF',
+          opacity: 0.55,
+        }}
+      >
+        SIGNAL LEVELS
+      </text>
+
+      {/* Top-right freehand HOWL O, acts like a maker's mark on the equipment */}
+      <g transform={`translate(${VB_W - 30}, 24)`}>
+        <circle
+          r={11}
+          fill="none"
+          stroke="var(--howl-coral)"
+          strokeWidth={3}
+          strokeLinecap="round"
+          filter="url(#howl-rough-eq)"
+        />
+      </g>
+
+      {/* Six signal groups */}
+      {SIGNALS.map((sig, sigIdx) => {
         const sigData = signals[sig.id];
         if (!sigData) return null;
 
-        // Build stacked surface segments
-        let cursorR = innerR;
-        const segments = SURFACES.map((surface, idx) => {
-          const surfaceScore = sigData.by_surface?.[surface.id] ?? 0;
-          const segLength = surfaceScore * progress * scale;
-          const from = cursorR;
-          const to = cursorR + segLength;
-          cursorR = to;
-          if (idx < SURFACES.length - 1) cursorR += radialGap;
-          return { surface, surfaceScore, from, to };
+        const groupX = LEFT_PAD + sigIdx * (GROUP_W + LARGE_GAP);
+        const groupCenterX = groupX + GROUP_W / 2;
+        const sigPhase = sigIdx * STAGGER_SIG;
+
+        // Compute animated values for the 4 surface bars in this group
+        const animatedSurfaces = SURFACES.map((surface, surfIdx) => {
+          const target = sigData.by_surface?.[surface.id] ?? 0;
+          const phase = sigPhase + surfIdx * STAGGER_SURF;
+          const t = Math.max(0, (tick - phase) / DURATION);
+          return spring(t, target);
         });
 
-        // The pale "room to grow" segment starts after a slightly larger gap.
-        const outlineStart = cursorR + gapBeforeOutline;
-        const outlineEnd = outerR;
-
-        const anchor = labelAnchor(midAngle);
-        const [lx, ly] = polar(midAngle, labelR);
-        const displayScore = Math.round((sigData.score || 0) * progress);
+        // The signal mean number naturally rises with the bars
+        const groupScore = Math.round(
+          animatedSurfaces.reduce((s, v) => s + v, 0) / N_SURFACES
+        );
 
         return (
           <g key={sig.id}>
-            {/* Filled surface segments */}
-            {segments.map(({ surface, from, to }) =>
-              to > from + 0.5 ? (
-                <path
-                  key={surface.id}
-                  d={annularSectorPath(startAngle, endAngle, from, to)}
-                  fill={surface.color}
-                  stroke="var(--howl-cream)"
-                  strokeWidth={0.5}
-                />
-              ) : null
-            )}
-
-            {/* Room to grow: pale outlined segment from end of stack to outer.
-                Wobble filter makes this read as hand-sketched aspiration,
-                in contrast to the precise filled data segments. */}
-            {outlineEnd > outlineStart + 0.5 && (
-              <path
-                d={annularSectorPath(startAngle, endAngle, outlineStart, outlineEnd)}
-                fill="var(--howl-bone)"
-                fillOpacity={0.55}
-                stroke="var(--howl-ink)"
-                strokeOpacity={0.32}
-                strokeWidth={1.5}
-                filter="url(#howl-rough)"
-              />
-            )}
-
-            {/* Signal name */}
+            {/* Signal mean score above group */}
             <text
-              x={lx}
-              y={ly}
-              textAnchor={anchor}
-              dominantBaseline="middle"
+              x={groupCenterX}
+              y={55}
+              textAnchor="middle"
               style={{
                 fontFamily: 'Anton, Inter, sans-serif',
-                fontSize: '13px',
-                fill: 'var(--howl-ink)',
-                letterSpacing: '0.07em',
+                fontSize: 22,
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '0.02em',
+                fill: tierColorDark(groupScore),
+              }}
+            >
+              {groupScore}
+            </text>
+
+            {/* Four LED bars for the four surfaces */}
+            {SURFACES.map((surface, surfIdx) => {
+              const animatedValue = animatedSurfaces[surfIdx];
+              const animatedLeds = (animatedValue / 100) * N_LEDS;
+              const color = SURFACE_COLOR_DARK[surface.id];
+              const bx = groupX + surfIdx * (BAR_W + SMALL_GAP);
+
+              return (
+                <g key={surface.id}>
+                  {Array.from({ length: N_LEDS }).map((_, i) => {
+                    const isLit = i < animatedLeds;
+                    const y = BAR_BOTTOM - (i + 1) * LED_PITCH + LED_GAP;
+                    return (
+                      <rect
+                        key={i}
+                        x={bx + 1}
+                        y={y}
+                        width={BAR_INNER_W}
+                        height={LED_H}
+                        rx={1.5}
+                        fill={isLit ? color : UNLIT}
+                      />
+                    );
+                  })}
+                </g>
+              );
+            })}
+
+            {/* Signal name below group */}
+            <text
+              x={groupCenterX}
+              y={BAR_BOTTOM + 22}
+              textAnchor="middle"
+              style={{
+                fontFamily: 'Anton, Inter, sans-serif',
+                fontSize: 12,
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
+                fill: '#FAF7EF',
+                opacity: 0.88,
               }}
             >
               {sig.name}
-            </text>
-            {/* Signal mean score, color-coded by tier */}
-            <text
-              x={lx}
-              y={ly + 19}
-              textAnchor={anchor}
-              dominantBaseline="middle"
-              style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '18px',
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-                fill: tierColor(sigData.score || 0),
-                letterSpacing: '0.02em',
-              }}
-            >
-              {displayScore}
             </text>
           </g>
         );
       })}
 
-      {/* Freehand O at center. Echoes the wobbly O in the HOWL wordmark.
-          Two stacked strokes (outer + inner offset) give a hand-drawn,
-          inked feel, and the displacement filter adds wobble so the
-          circle is genuinely imperfect rather than algorithmically perfect. */}
-      <g style={{ opacity: 0.92 }}>
-        {/* Subtle outer shadow stroke for ink-on-paper feel */}
-        <circle
-          cx={cx + 0.6}
-          cy={cy + 0.8}
-          r={innerR * 0.82}
-          fill="none"
-          stroke="var(--howl-ink)"
-          strokeOpacity={0.18}
-          strokeWidth={5.5}
-          filter="url(#howl-rough)"
-        />
-        {/* Main hand-drawn O */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={innerR * 0.82}
-          fill="none"
-          stroke="var(--howl-coral)"
-          strokeWidth={5}
-          strokeLinecap="round"
-          filter="url(#howl-rough)"
-        />
-      </g>
+      {/* Compact legend embedded in the screen */}
+      {(() => {
+        const itemW = 92;
+        const legendTotalW = N_SURFACES * itemW;
+        const legendX = (VB_W - legendTotalW) / 2;
+        return (
+          <g>
+            {SURFACES.map((s, i) => {
+              const x = legendX + i * itemW;
+              const y = VB_H - 16;
+              return (
+                <g key={s.id}>
+                  <rect
+                    x={x}
+                    y={y - 6}
+                    width={8}
+                    height={8}
+                    rx={1}
+                    fill={SURFACE_COLOR_DARK[s.id]}
+                  />
+                  <text
+                    x={x + 14}
+                    y={y + 1}
+                    style={{
+                      fontFamily: 'Anton, Inter, sans-serif',
+                      fontSize: 9,
+                      letterSpacing: '0.13em',
+                      fill: '#FAF7EF',
+                      opacity: 0.55,
+                    }}
+                  >
+                    {s.name.toUpperCase()}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
@@ -1917,6 +2041,29 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
   const verdict = getVerdict(overall);
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  // Category-editing state. Initialize from brandMeta; updates ride through
+  // the local override so we can show the change instantly without round-
+  // tripping through props.
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [currentCategory, setCurrentCategory] = useState(brandMeta?.category || '');
+  const [categorySavedFlash, setCategorySavedFlash] = useState(false);
+
+  const categoryDisplayName = CATEGORIES.find((c) => c.id === currentCategory)?.name;
+  const businessModelName = BUSINESS_MODELS.find((m) => m.id === brandMeta?.businessModel)?.name;
+
+  async function handleCategoryChange(newCat) {
+    if (!savedReadId || !newCat || newCat === currentCategory) {
+      setEditingCategory(false);
+      return;
+    }
+    const result = await updateReadCategory(savedReadId, newCat);
+    if (result.ok) {
+      setCurrentCategory(newCat);
+      setCategorySavedFlash(true);
+      setTimeout(() => setCategorySavedFlash(false), 1500);
+    }
+    setEditingCategory(false);
+  }
 
   const shareUrl = savedReadId
     ? `${window.location.origin}${window.location.pathname}?read=${savedReadId}`
@@ -2011,8 +2158,68 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 howl-fadein">
       {/* Verdict header */}
       <div className="mb-10">
-        <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
+        <div className="howl-stamp mb-1" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
           The READ, {brandMeta.brandName}
+        </div>
+        {/* Editable metadata line: category, business model. The category
+            can be corrected after a Read is saved without re-running. */}
+        <div
+          className="text-[11px] tracking-wide uppercase mb-4 flex items-center gap-2 flex-wrap"
+          style={{ color: 'var(--howl-mute)' }}
+        >
+          {editingCategory && savedReadId && !readOnly ? (
+            <select
+              value={currentCategory || ''}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              onBlur={() => setEditingCategory(false)}
+              autoFocus
+              style={{
+                fontSize: '11px',
+                padding: '2px 6px',
+                border: '1px solid var(--howl-ink)',
+                background: 'var(--howl-cream)',
+                fontFamily: 'Inter, sans-serif',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <span>
+                {categoryDisplayName || 'Uncategorized'}
+                {businessModelName ? ` · ${businessModelName}` : ''}
+              </span>
+              {savedReadId && !readOnly && (
+                <button
+                  onClick={() => setEditingCategory(true)}
+                  title="Edit category"
+                  style={{
+                    padding: '2px 4px',
+                    color: 'var(--howl-mute)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
+              {categorySavedFlash && (
+                <span style={{ color: 'var(--howl-strong)', fontWeight: 600 }}>
+                  ✓ saved
+                </span>
+              )}
+            </>
+          )}
         </div>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div>
@@ -2123,47 +2330,15 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         );
       })()}
 
-      {/* Radial chart + summary */}
+      {/* Signal equalizer + summary */}
       <div className="grid md:grid-cols-5 gap-6 mb-12">
         <div className="card-howl p-5 sm:p-6 md:col-span-3">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
             Six Signals, How Loud
           </div>
-          <RadialScoreBars signals={report.signals} />
-          <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center pt-2">
-            {SURFACES.map((s) => (
-              <div key={s.id} className="flex items-center gap-2">
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 12,
-                    height: 12,
-                    background: s.color,
-                  }}
-                />
-                <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
-                  {s.name}
-                </span>
-              </div>
-            ))}
-            <div className="flex items-center gap-2">
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 12,
-                  height: 12,
-                  background: 'var(--howl-bone)',
-                  border: '1px solid var(--howl-ink)',
-                  opacity: 0.6,
-                }}
-              />
-              <span className="howl-stamp" style={{ fontSize: '0.6875rem', letterSpacing: '0.12em' }}>
-                Room to grow
-              </span>
-            </div>
-          </div>
+          <SignalEqualizer signals={report.signals} />
           <p className="text-xs text-center mt-4" style={{ color: 'var(--howl-mute)' }}>
-            Each spoke is a signal. The four stacked colors are surface scores; the outlined segment is room to grow into a full howl.
+            Each cluster is a signal. The four bars show how loud the brand reads across each surface: Website, Social, Reputation, Earned.
           </p>
         </div>
         <div className="card-howl p-5 sm:p-6 md:col-span-2">
