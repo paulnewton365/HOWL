@@ -12,9 +12,7 @@ import {
   EDGE_PLAYBOOK,
   PLAY_PLAYBOOK,
   BELIEF_DIMENSIONS,
-  CONDUCT_DIMENSIONS,
   BELIEF_IDS,
-  CONDUCT_IDS,
 } from './data/rubric';
 import pkg from '../package.json';
 import {
@@ -1410,20 +1408,6 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         lines.push('');
       }
     }
-    if (report.conduct) {
-      lines.push('## THE CONDUCT READ ##');
-      CONDUCT_DIMENSIONS.forEach((d) => {
-        const data = report.conduct[d.id];
-        if (!data) return;
-        lines.push(`${d.name.toUpperCase()}: ${data.score ?? '–'}`);
-        if (data.read) lines.push(data.read);
-        lines.push('');
-      });
-      if (report.conduct.summary) {
-        lines.push(report.conduct.summary);
-        lines.push('');
-      }
-    }
     lines.push('## EDGE ##');
     (report.edge || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
     lines.push('');
@@ -1726,7 +1710,6 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
       </div>
 
       <BeliefSection belief={report.belief} />
-      <ConductSection conduct={report.conduct} />
 
       <RecommendationBlock
         label="EDGE"
@@ -2011,89 +1994,6 @@ function BeliefSection({ belief }) {
   );
 }
 
-function ConductSection({ conduct }) {
-  if (!conduct) return null;
-
-  function scoreColor(score) {
-    if (score === null) return 'var(--howl-mute)';
-    if (score >= 70) return 'var(--howl-strong)';
-    if (score >= 40) return 'var(--howl-mid)';
-    return 'var(--howl-weak)';
-  }
-
-  return (
-    <div className="mb-12">
-      <div className="mb-6">
-        <h2 className="font-display" style={{ fontSize: '2rem', lineHeight: 1.05 }}>
-          The Conduct Read.
-        </h2>
-        <p
-          className="text-base mt-2"
-          style={{ color: 'var(--howl-ink-soft)', fontStyle: 'italic' }}
-        >
-          How the brand wields its market position, plays against rivals, and treats those it captures.
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-5 mb-6">
-        {CONDUCT_DIMENSIONS.map((d) => {
-          const data = conduct[d.id];
-          if (!data) return null;
-          return (
-            <div key={d.id} className="card-howl p-5 sm:p-6 flex flex-col">
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="font-display" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
-                  {d.name}
-                </div>
-                <div
-                  className="font-display tabular-nums"
-                  style={{
-                    fontSize: '2.5rem',
-                    lineHeight: 1,
-                    color: scoreColor(data.score),
-                  }}
-                >
-                  {data.score ?? '–'}
-                </div>
-              </div>
-              <p
-                className="text-xs mb-4"
-                style={{ color: 'var(--howl-mute)', fontStyle: 'italic' }}
-              >
-                {d.question}
-              </p>
-              {data.read && (
-                <p
-                  className="text-sm"
-                  style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.55 }}
-                >
-                  {data.read}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {conduct.summary && (
-        <div
-          className="p-5 sm:p-6"
-          style={{
-            background: 'var(--howl-bone)',
-            border: '1.5px solid var(--howl-ink)',
-            borderLeftWidth: '4px',
-            borderLeftColor: 'var(--howl-coral)',
-          }}
-        >
-          <p className="text-lg leading-snug" style={{ fontStyle: 'italic' }}>
-            "{conduct.summary}"
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function RecommendationBlock({ label, sublabel, icon, recommendations, bg, fg, accent }) {
   if (!recommendations || recommendations.length === 0) return null;
   return (
@@ -2239,15 +2139,6 @@ function buildSystemPrompt() {
       `Weak: ${d.weak.join('; ')}\n`
   ).join('\n');
 
-  const conductSpec = CONDUCT_DIMENSIONS.map(
-    (d) =>
-      `### ${d.id}, ${d.name}\n` +
-      `Question: ${d.question}\n` +
-      `Thesis: ${d.thesis}\n` +
-      `Strong: ${d.strong.join('; ')}\n` +
-      `Weak: ${d.weak.join('; ')}\n`
-  ).join('\n');
-
   return `You are the analytical engine behind HOWL READ, a brand diagnostic from HOWL, a creative agency born inside Antenna Group.
 
 HOWL's thesis applies to any brand, not only sustainability or impact brands:
@@ -2280,27 +2171,13 @@ For belief scoring, focus on what AUDIENCES say and how the brand is RECEIVED, n
 - Brand's own website: is there a take-back program, repair service, community space, advocacy channel? Are consumers given a role?
 - Certifications, audits, third-party ratings: visible, accessible, or buried?
 
-You ALSO score the brand on THREE CONDUCT DIMENSIONS (each 0-100). This is competitive and market behavior, independent of communication: a brand can howl loudly AND behave well, or quietly while behaving badly. Higher score = healthier, more proportionate, more open. Lower score = signals of dominance abuse, anti-competitive tactics, or designed-in lock-in. Every brand gets scored. Small or local brands without meaningful market power will naturally score high; that is informative, not noise.
-
-${conductSpec}
-
-For conduct scoring, focus on observable BEHAVIOR and on-the-record signals, not vibes. Use these sources:
-- Antitrust filings, FTC/DOJ/EC investigations, consent decrees, regulatory actions in the last 5-10 years.
-- Earned media coverage of acquisitions: did the brand absorb competitors to eliminate them, or to expand capability?
-- Litigation history: IP suits brought by the brand, non-compete enforcement, vertical foreclosure complaints.
-- Lobbying disclosures (OpenSecrets, EU transparency register) for size and direction relative to brand size.
-- Reddit, Hacker News, Glassdoor, ex-employee testimony: lock-in, hard-to-cancel patterns, non-compete clauses, dark patterns.
-- Industry analyst language: do they use the words monopoly, gatekeeper, dominant, walled garden?
-- For small or niche brands: note their absence from these surfaces, score accordingly (typically 80+).
-
 Use web_search aggressively before scoring. For each brand you read:
 1. Fetch the homepage and About page.
 2. Search for the brand's recent social posts on LinkedIn, Instagram, X, TikTok, YouTube.
 3. Search for what the brand is reviewed for on Trustpilot, Glassdoor, Reddit, App stores.
 4. Search for tier-one earned media coverage from the last 12 months.
 5. Search for greenwashing or credibility commentary about the brand on Reddit and in earned media.
-6. Search for antitrust action, regulatory investigation, acquisition history, and conduct commentary (FTC, DOJ, EC, antitrust, monopoly, gatekeeper, dark patterns, non-compete, walled garden) tied to the brand.
-7. Note how publicly accessible AI information describes the brand.
+6. Note how publicly accessible AI information describes the brand.
 
 You ALWAYS produce specific evidence rooted in what the brand actually does on its public surfaces. You name pages, campaigns, partners, language patterns, headlines. No generic statements like "their website discusses sustainability".
 
@@ -2322,12 +2199,6 @@ Return STRICT JSON only. No prose outside the JSON. No code fences. The schema i
     "PROVEN":        { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether evidence exists and whether audiences can find it" },
     "PARTICIPATORY": { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether consumers have a role or just an audience seat" },
     "summary": "3-4 sentences in HOWL voice on the overall audience verdict. Whether the brand has built trust faster than it has built evidence. Whether the impact story is a shared project or a marketing claim."
-  },
-  "conduct": {
-    "PROPORTION": { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on whether the brand's market position is earned through value or maintained through gatekeeping. Name specific acquisitions, market share data, regulatory actions if relevant." },
-    "FAIR":       { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on competitive tactics. Predatory pricing, killer acquisitions, IP weaponization, non-competes, lobbying, self-preferencing. Name specifics." },
-    "OPEN":       { "score": <int 0-100>, "read": "2-3 sentences in HOWL voice on lock-in. Cancellation friction, data portability, walled gardens, format lock, exit barriers for partners or workers. Name specifics." },
-    "summary": "3-4 sentences in HOWL voice on the overall conduct verdict. Whether the brand has earned its position or trapped its way to it. Whether it competes in the market or controls the market."
   },
   "edge": [
     { "title": "Short verb-led name", "rationale": "1-2 sentences in HOWL voice. Why this strategic move, why for THIS brand, naming specific evidence", "addresses": ["SIGNAL_OR_BELIEF_ID"] },
@@ -2579,28 +2450,12 @@ function normalizeReport(raw) {
   });
   if (typeof raw.belief?.summary === 'string') belief.summary = raw.belief.summary;
 
-  // Conduct: market and competitive behavior. Same shape as belief.
-  const conduct = { summary: '' };
-  let hasConductData = false;
-  CONDUCT_IDS.forEach((id) => {
-    const d = raw.conduct?.[id];
-    if (d && typeof d === 'object') {
-      const s = typeof d.score === 'number' ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
-      conduct[id] = { score: s, read: d.read || '' };
-      if (s !== null) hasConductData = true;
-    } else {
-      conduct[id] = { score: null, read: '' };
-    }
-  });
-  if (typeof raw.conduct?.summary === 'string') conduct.summary = raw.conduct.summary;
-
   return {
     overall_score: overall,
     verdict: raw.verdict || '',
     summary: raw.summary || '',
     signals,
     belief: hasBeliefData ? belief : null,
-    conduct: hasConductData ? conduct : null,
     edge,
     play,
   };
