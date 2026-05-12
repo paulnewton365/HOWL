@@ -2775,55 +2775,64 @@ function RecommendationBlock({ label, sublabel, icon, recommendations, standards
         </div>
         <p className="text-sm opacity-85">{sublabel}</p>
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* Standards card: editorial brief showing what every recommendation
-            in this section had to meet. Sits as the first cell so the 3 AI-
-            generated recommendations fill the remaining 3 cells of the 2x2
-            grid — no empty space at the bottom. */}
-        {standards && standards.length > 0 && (
-          <div
-            className="p-5"
-            style={{
-              background: 'var(--howl-cream)',
-              border: `1.5px solid ${accent}`,
-              borderLeftWidth: '4px',
-            }}
-          >
+
+      {/* Standards panel: full-width editorial brief shown before the
+          recommendation grid. Criteria lay out in a responsive horizontal
+          grid (4 cols desktop, 2 tablet, 1 mobile) so the panel uses its
+          horizontal space instead of stacking vertically and squashing. */}
+      {standards && standards.length > 0 && (
+        <div
+          className="mb-5 p-5 sm:p-6"
+          style={{
+            background: 'var(--howl-cream)',
+            border: `1.5px solid ${accent}`,
+            borderLeftWidth: '4px',
+          }}
+        >
+          <div className="flex items-baseline justify-between gap-4 flex-wrap mb-4">
             <div
-              className="howl-stamp mb-3"
+              className="howl-stamp"
               style={{ fontSize: '0.6875rem', color: 'var(--howl-mute)', letterSpacing: '0.14em' }}
             >
               Standards
             </div>
             <p
-              className="text-xs mb-3"
-              style={{ color: 'var(--howl-mute)', fontStyle: 'italic', lineHeight: 1.45 }}
+              className="text-xs"
+              style={{ color: 'var(--howl-mute)', fontStyle: 'italic' }}
             >
-              Every {label.toLowerCase()} below had to meet these:
+              Every {label.toLowerCase()} below had to meet these.
             </p>
-            <ul className="space-y-2">
-              {standards.map((s, i) => (
-                <li
-                  key={i}
-                  className="text-sm flex gap-2 items-start"
-                  style={{ color: 'var(--howl-ink)', lineHeight: 1.45 }}
-                >
-                  <span
-                    className="font-display shrink-0 tabular-nums"
-                    style={{
-                      fontSize: '0.875rem',
-                      color: accent,
-                      minWidth: '1.25rem',
-                    }}
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span>{s}</span>
-                </li>
-              ))}
-            </ul>
           </div>
-        )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {standards.map((s, i) => (
+              <div key={i} className="flex gap-3 items-start">
+                <span
+                  className="font-display shrink-0 tabular-nums"
+                  style={{
+                    fontSize: '1.5rem',
+                    lineHeight: 1,
+                    color: accent,
+                    minWidth: '1.75rem',
+                  }}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span
+                  className="text-sm"
+                  style={{ color: 'var(--howl-ink)', lineHeight: 1.4 }}
+                >
+                  {s}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations in a 3-column grid since the AI returns exactly 3
+          per section. Each cell gets equal horizontal real estate, no empty
+          slot at the end of the row. */}
+      <div className="grid md:grid-cols-3 gap-4">
         {recommendations.map((r, i) => (
           <div key={i} className="card-howl p-5">
             <div className="flex items-start justify-between mb-2 gap-3">
