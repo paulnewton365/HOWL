@@ -1074,7 +1074,7 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
           </button>
 
           <p className="text-xs" style={{ color: 'var(--howl-mute)' }}>
-            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It automatically discovers the brand's social handles and samples how Claude describes the brand. It evaluates messaging signals, not internal performance.
+            The READ uses public information across the brand's website, social, third-party reputation surfaces, and earned media. It automatically discovers the brand's social handles and samples how AI engines describe the brand. It evaluates messaging signals, not internal performance.
           </p>
         </form>
       </div>
@@ -1089,7 +1089,7 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
 function RunningRead({ brandName, stage }) {
   const lines = useMemo(
     () => [
-      'Asking Claude what it knows about the brand.',
+      'Sampling how AI engines describe the brand.',
       'Reading the homepage.',
       'Listening for category cliché.',
       'Scanning the social feeds.',
@@ -1134,7 +1134,7 @@ function RunningRead({ brandName, stage }) {
         </span>
       </div>
       <p className="text-xs mt-10" style={{ color: 'var(--howl-mute)' }}>
-        This usually takes 30–90 seconds. Claude is reading the brand's actual surfaces.
+        This usually takes 30 to 90 seconds. The Read is checking the brand's actual surfaces.
       </p>
     </main>
   );
@@ -1415,7 +1415,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
     (report.play || []).forEach((r) => lines.push(`${r.title}: ${r.rationale}`));
     if (report.ai_description) {
       lines.push('');
-      lines.push('## WHAT CLAUDE SAYS ABOUT YOU (unprompted, no web search) ##');
+      lines.push('## HOW AI DESCRIBES YOU (unprompted, no web search) ##');
       lines.push(report.ai_description);
     }
     if (report.social_handles) {
@@ -1739,7 +1739,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
                 className="howl-stamp mb-3"
                 style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}
               >
-                What Claude says about you
+                What AI says about you
               </div>
               <div
                 className="card-howl p-5 sm:p-6 h-full"
@@ -1763,7 +1763,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
                     letterSpacing: '0.04em',
                   }}
                 >
-                  Sampled from Claude with no web search, this is your footprint in AI training data. If this reads thin, vague, or wrong, that is a REPUTATION finding in its own right.
+                  Sampled from a major AI engine with no web search, this is your footprint in AI training data. If this reads thin, vague, or wrong, that is a REPUTATION finding in its own right.
                 </p>
               </div>
             </div>
@@ -2328,7 +2328,7 @@ function findJsonObjects(s) {
 }
 
 function extractJson(text) {
-  if (!text) throw new Error('Empty response from Claude.');
+  if (!text) throw new Error('Empty response from the analytical engine.');
   let s = text.trim();
   // Strip surrounding code fences if Claude wrapped the response
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');

@@ -80,7 +80,7 @@ export const SURFACES = [
     color: '#C29469',
     description: 'AI engine descriptions, third-party reviews, Glassdoor, Reddit, certifications, trust marks.',
     looks_for: [
-      'How AI engines (Claude, ChatGPT, Gemini, Perplexity) describe the brand unprompted',
+      'How major AI engines describe the brand unprompted',
       'Wikipedia presence and external citations',
       'Reviews on Trustpilot, Glassdoor, App stores, etc.',
       'Certifications, audits, and third-party trust signals',
