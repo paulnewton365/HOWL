@@ -2263,76 +2263,9 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         </div>
       )}
 
-      {/* Belief modifier: flags the relationship between overall volume and
-          audience credibility without folding belief into the headline score. */}
-      {(() => {
-        if (!report.belief) return null;
-        const scores = BELIEF_IDS
-          .map((id) => report.belief[id]?.score)
-          .filter((s) => typeof s === 'number');
-        if (scores.length === 0) return null;
-        const beliefAvg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-        const delta = beliefAvg - overall;
-
-        let read;
-        if (delta >= 15) {
-          read = 'Underrated. Audiences trust the story more than the brand is broadcasting it.';
-        } else if (delta >= 5) {
-          read = 'Audiences are giving more credit than the messaging earns.';
-        } else if (delta <= -15) {
-          read = 'Shouting without trust. Audiences hear the brand but do not believe it.';
-        } else if (delta <= -5) {
-          read = 'Volume runs ahead of credibility. The claims land as more aspirational than earned.';
-        } else {
-          read = 'In sync. Volume and credibility are moving together.';
-        }
-
-        return (
-          <div
-            className="mb-10 -mt-6 p-4 sm:p-5"
-            style={{
-              background: 'var(--howl-cream)',
-              border: '1px solid var(--howl-cream-deep)',
-            }}
-          >
-            <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
-              <div className="shrink-0">
-                <div
-                  className="howl-stamp mb-1"
-                  style={{ fontSize: '0.6875rem', color: 'var(--howl-mute)', letterSpacing: '0.12em' }}
-                >
-                  Belief modifier
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className="font-display tabular-nums"
-                    style={{ fontSize: '2rem', lineHeight: 1, color: scoreColor(beliefAvg) }}
-                  >
-                    {beliefAvg}
-                  </span>
-                  <span
-                    className="text-[10px] tracking-[0.15em] uppercase"
-                    style={{ color: 'var(--howl-mute)' }}
-                  >
-                    / 100
-                  </span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}>
-                  Overall reflects messaging volume across the six signals. The Belief Read tracks
-                  audience reception separately and is not folded into the headline score.{' '}
-                  <span style={{ color: 'var(--howl-ink)', fontWeight: 600 }}>{read}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Signal equalizer + summary */}
       <div className="grid md:grid-cols-5 gap-6 mb-12">
-        <div className="card-howl p-5 sm:p-6 md:col-span-3">
+        <div className="card-howl p-5 sm:p-6 md:col-span-3 flex flex-col">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>
             Six Signals, How Loud
           </div>
@@ -2340,6 +2273,75 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
           <p className="text-xs text-center mt-4" style={{ color: 'var(--howl-mute)' }}>
             Each cluster is a signal. The four bars show how loud the brand reads across each surface: Website, Social, Reputation, Earned.
           </p>
+
+          {/* Belief modifier: flags the relationship between overall volume and
+              audience credibility without folding belief into the headline score.
+              Placed here (below the chart) so the chart card balances against
+              the per-signal list in the summary card on the right. */}
+          {(() => {
+            if (!report.belief) return null;
+            const scores = BELIEF_IDS
+              .map((id) => report.belief[id]?.score)
+              .filter((s) => typeof s === 'number');
+            if (scores.length === 0) return null;
+            const beliefAvg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+            const delta = beliefAvg - overall;
+
+            let read;
+            if (delta >= 15) {
+              read = 'Underrated. Audiences trust the story more than the brand is broadcasting it.';
+            } else if (delta >= 5) {
+              read = 'Audiences are giving more credit than the messaging earns.';
+            } else if (delta <= -15) {
+              read = 'Shouting without trust. Audiences hear the brand but do not believe it.';
+            } else if (delta <= -5) {
+              read = 'Volume runs ahead of credibility. The claims land as more aspirational than earned.';
+            } else {
+              read = 'In sync. Volume and credibility are moving together.';
+            }
+
+            return (
+              <div
+                className="mt-6 p-4 sm:p-5 flex-1"
+                style={{
+                  background: 'var(--howl-cream)',
+                  border: '1px solid var(--howl-cream-deep)',
+                }}
+              >
+                <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
+                  <div className="shrink-0">
+                    <div
+                      className="howl-stamp mb-1"
+                      style={{ fontSize: '0.6875rem', color: 'var(--howl-mute)', letterSpacing: '0.12em' }}
+                    >
+                      Belief modifier
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className="font-display tabular-nums"
+                        style={{ fontSize: '2rem', lineHeight: 1, color: scoreColor(beliefAvg) }}
+                      >
+                        {beliefAvg}
+                      </span>
+                      <span
+                        className="text-[10px] tracking-[0.15em] uppercase"
+                        style={{ color: 'var(--howl-mute)' }}
+                      >
+                        / 100
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm" style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.5 }}>
+                      Overall reflects messaging volume across the six signals. The Belief Read tracks
+                      audience reception separately and is not folded into the headline score.{' '}
+                      <span style={{ color: 'var(--howl-ink)', fontWeight: 600 }}>{read}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <div className="card-howl p-5 sm:p-6 md:col-span-2">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>The Read</div>
