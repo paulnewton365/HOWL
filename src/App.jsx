@@ -2032,6 +2032,30 @@ function SignalEqualizer({ signals }) {
   );
 }
 
+// Counts a number up from 0 to `value` on mount with ease-out cubic. Used for
+// the headline overall score so it feels like a meter settling, alongside the
+// equalizer that animates with spring physics on the same page load.
+function AnimatedNumber({ value, duration = 1400 }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      setDisplay(value);
+      return;
+    }
+    const start = performance.now();
+    let raf;
+    function loop(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(value * eased));
+      if (t < 1) raf = requestAnimationFrame(loop);
+    }
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <>{display}</>;
+}
+
 // ============================================================================
 // REPORT
 // ============================================================================
@@ -2239,29 +2263,15 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
           >
             <div className="text-[10px] tracking-[0.15em] uppercase opacity-70">Overall</div>
             <div className="font-display" style={{ fontSize: '4rem', color: 'var(--howl-coral)' }}>
-              {overall}
+              <AnimatedNumber value={overall} />
             </div>
             <div className="text-[10px] tracking-[0.15em] uppercase opacity-70">/ 100</div>
           </div>
         </div>
       </div>
 
-      {/* Verdict pull-quote */}
-      {report.verdict && (
-        <div
-          className="mb-10 p-5 sm:p-6"
-          style={{
-            background: 'var(--howl-bone)',
-            border: '1.5px solid var(--howl-ink)',
-            borderLeftWidth: '4px',
-            borderLeftColor: 'var(--howl-coral)',
-          }}
-        >
-          <p className="text-xl leading-snug" style={{ fontStyle: 'italic' }}>
-            "{report.verdict}"
-          </p>
-        </div>
-      )}
+      {/* Verdict pull-quote was here, moved into the right panel below where
+          it replaces the duplicate signal bars (data already shown in the EQ). */}
 
       {/* Signal equalizer + summary */}
       <div className="grid md:grid-cols-5 gap-6 mb-12">
@@ -2345,39 +2355,32 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
         </div>
         <div className="card-howl p-5 sm:p-6 md:col-span-2">
           <div className="howl-stamp mb-4" style={{ fontSize: '0.8125rem' }}>The Read</div>
+
+          {/* Verdict pull-quote, moved from above the chart grid. Sits at the
+              top of the right panel so the eye lands on the HOWL-voice
+              one-liner first, then descends into the analytical summary. */}
+          {report.verdict && (
+            <div
+              className="mb-5 p-4 sm:p-5"
+              style={{
+                background: 'var(--howl-bone)',
+                borderLeft: '4px solid var(--howl-coral)',
+              }}
+            >
+              <p className="text-base leading-snug" style={{ fontStyle: 'italic' }}>
+                "{report.verdict}"
+              </p>
+            </div>
+          )}
+
           {report.summary && (
             <p
-              className="text-base mb-5"
+              className="text-base"
               style={{ color: 'var(--howl-ink-soft)', lineHeight: 1.55 }}
             >
               {report.summary}
             </p>
           )}
-          <div className="space-y-2 pt-4" style={{ borderTop: '1px solid var(--howl-cream-deep)' }}>
-            {SIGNALS.map((sig) => {
-              const s = report.signals[sig.id];
-              if (!s) return null;
-              return (
-                <div key={sig.id} className="flex items-center justify-between text-sm">
-                  <span className="howl-stamp" style={{ fontSize: '0.8125rem' }}>{sig.name}</span>
-                  <div className="flex items-center gap-3 flex-1 mx-3">
-                    <div className="flex-1 h-2 relative" style={{ background: 'var(--howl-cream-deep)' }}>
-                      <div
-                        className="absolute inset-y-0 left-0"
-                        style={{ width: `${s.score}%`, background: scoreColor(s.score) }}
-                      />
-                    </div>
-                  </div>
-                  <span
-                    className="font-bold tabular-nums w-8 text-right"
-                    style={{ color: scoreColor(s.score) }}
-                  >
-                    {s.score}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </div>
 
