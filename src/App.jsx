@@ -1775,15 +1775,15 @@ function RunningRead({ brandName, stage }) {
 // and discrete LED segments make it read like vintage music equipment.
 function SignalEqualizer({ signals }) {
   // ----- Geometry -----
-  const VB_W = 600;
-  const VB_H = 320;
-  const BAR_W = 14;
-  const BAR_INNER_W = 12;
-  const SMALL_GAP = 1.5;  // within a signal group
-  const LARGE_GAP = 14;   // between signal groups
+  const VB_W = 720;
+  const VB_H = 360;
+  const BAR_W = 22;
+  const BAR_INNER_W = 20;
+  const SMALL_GAP = 2;    // within a signal group
+  const LARGE_GAP = 20;   // between signal groups
   const N_LEDS = 20;
-  const LED_H = 6;
-  const LED_GAP = 2;
+  const LED_H = 7;
+  const LED_GAP = 2.5;
   const LED_PITCH = LED_H + LED_GAP;
 
   const N_SIGNALS = SIGNALS.length;
@@ -1792,7 +1792,7 @@ function SignalEqualizer({ signals }) {
   const TOTAL_W = N_SIGNALS * GROUP_W + (N_SIGNALS - 1) * LARGE_GAP;
   const LEFT_PAD = (VB_W - TOTAL_W) / 2;
 
-  const BAR_BOTTOM = 232;
+  const BAR_BOTTOM = 285;
 
   // ----- Animation -----
   const DURATION = 1500;       // per-bar spring duration
@@ -1859,7 +1859,7 @@ function SignalEqualizer({ signals }) {
     <svg
       viewBox={`0 0 ${VB_W} ${VB_H}`}
       width="100%"
-      style={{ maxWidth: VB_W, height: 'auto', display: 'block', margin: '0 auto' }}
+      style={{ width: '100%', height: 'auto', display: 'block' }}
       aria-label="Equalizer chart of READ scores. Twenty-four bars across six signals and four surfaces."
     >
       <defs>
@@ -1876,11 +1876,11 @@ function SignalEqualizer({ signals }) {
 
       {/* Top-left stamp */}
       <text
-        x={22}
-        y={28}
+        x={26}
+        y={32}
         style={{
           fontFamily: 'Anton, Inter, sans-serif',
-          fontSize: 11,
+          fontSize: 12,
           letterSpacing: '0.18em',
           fill: '#FAF7EF',
           opacity: 0.55,
@@ -1890,12 +1890,12 @@ function SignalEqualizer({ signals }) {
       </text>
 
       {/* Top-right freehand HOWL O, acts like a maker's mark on the equipment */}
-      <g transform={`translate(${VB_W - 30}, 24)`}>
+      <g transform={`translate(${VB_W - 36}, 28)`}>
         <circle
-          r={11}
+          r={13}
           fill="none"
           stroke="var(--howl-coral)"
-          strokeWidth={3}
+          strokeWidth={3.5}
           strokeLinecap="round"
           filter="url(#howl-rough-eq)"
         />
@@ -1928,11 +1928,11 @@ function SignalEqualizer({ signals }) {
             {/* Signal mean score above group */}
             <text
               x={groupCenterX}
-              y={55}
+              y={72}
               textAnchor="middle"
               style={{
                 fontFamily: 'Anton, Inter, sans-serif',
-                fontSize: 22,
+                fontSize: 26,
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing: '0.02em',
                 fill: tierColorDark(groupScore),
@@ -1972,11 +1972,11 @@ function SignalEqualizer({ signals }) {
             {/* Signal name below group */}
             <text
               x={groupCenterX}
-              y={BAR_BOTTOM + 22}
+              y={BAR_BOTTOM + 26}
               textAnchor="middle"
               style={{
                 fontFamily: 'Anton, Inter, sans-serif',
-                fontSize: 12,
+                fontSize: 13,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 fill: '#FAF7EF',
@@ -1991,30 +1991,30 @@ function SignalEqualizer({ signals }) {
 
       {/* Compact legend embedded in the screen */}
       {(() => {
-        const itemW = 92;
+        const itemW = 108;
         const legendTotalW = N_SURFACES * itemW;
         const legendX = (VB_W - legendTotalW) / 2;
         return (
           <g>
             {SURFACES.map((s, i) => {
               const x = legendX + i * itemW;
-              const y = VB_H - 16;
+              const y = VB_H - 18;
               return (
                 <g key={s.id}>
                   <rect
                     x={x}
-                    y={y - 6}
-                    width={8}
-                    height={8}
-                    rx={1}
+                    y={y - 7}
+                    width={10}
+                    height={10}
+                    rx={1.5}
                     fill={SURFACE_COLOR_DARK[s.id]}
                   />
                   <text
-                    x={x + 14}
+                    x={x + 16}
                     y={y + 1}
                     style={{
                       fontFamily: 'Anton, Inter, sans-serif',
-                      fontSize: 9,
+                      fontSize: 10,
                       letterSpacing: '0.13em',
                       fill: '#FAF7EF',
                       opacity: 0.55,
