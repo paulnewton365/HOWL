@@ -1227,15 +1227,21 @@ function RadialScoreBars({ signals, size = 520 }) {
       style={{ maxWidth: size + 2 * padX, height: 'auto', display: 'block', margin: '0 auto' }}
       aria-label="Radial chart of HOWL READ scores. Each spoke is a signal with four stacked surface scores and a pale segment showing room to grow."
     >
-      {/* Inner cream hole */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={innerR}
-        fill="var(--howl-cream)"
-        stroke="var(--howl-ink)"
-        strokeOpacity={0.25}
-      />
+      <defs>
+        {/* Hand-drawn wobble. Applied to the "room to grow" outlines and the
+            freehand O at the center, so the loose / aspirational parts of the
+            chart echo the HOWL identity. The filled surface segments stay
+            clean so the actual data reads precisely. */}
+        <filter id="howl-rough" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.025"
+            numOctaves="2"
+            seed="4"
+          />
+          <feDisplacementMap in="SourceGraphic" scale="3" />
+        </filter>
+      </defs>
 
       {/* Each signal: stacked surface segments + outline gap segment */}
       {SIGNALS.map((sig, i) => {
@@ -1280,15 +1286,18 @@ function RadialScoreBars({ signals, size = 520 }) {
               ) : null
             )}
 
-            {/* Room to grow: pale outlined segment from end of stack to outer */}
+            {/* Room to grow: pale outlined segment from end of stack to outer.
+                Wobble filter makes this read as hand-sketched aspiration,
+                in contrast to the precise filled data segments. */}
             {outlineEnd > outlineStart + 0.5 && (
               <path
                 d={annularSectorPath(startAngle, endAngle, outlineStart, outlineEnd)}
                 fill="var(--howl-bone)"
                 fillOpacity={0.55}
                 stroke="var(--howl-ink)"
-                strokeOpacity={0.22}
-                strokeWidth={1}
+                strokeOpacity={0.32}
+                strokeWidth={1.5}
+                filter="url(#howl-rough)"
               />
             )}
 
@@ -1328,6 +1337,35 @@ function RadialScoreBars({ signals, size = 520 }) {
           </g>
         );
       })}
+
+      {/* Freehand O at center. Echoes the wobbly O in the HOWL wordmark.
+          Two stacked strokes (outer + inner offset) give a hand-drawn,
+          inked feel, and the displacement filter adds wobble so the
+          circle is genuinely imperfect rather than algorithmically perfect. */}
+      <g style={{ opacity: 0.92 }}>
+        {/* Subtle outer shadow stroke for ink-on-paper feel */}
+        <circle
+          cx={cx + 0.6}
+          cy={cy + 0.8}
+          r={innerR * 0.82}
+          fill="none"
+          stroke="var(--howl-ink)"
+          strokeOpacity={0.18}
+          strokeWidth={5.5}
+          filter="url(#howl-rough)"
+        />
+        {/* Main hand-drawn O */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={innerR * 0.82}
+          fill="none"
+          stroke="var(--howl-coral)"
+          strokeWidth={5}
+          strokeLinecap="round"
+          filter="url(#howl-rough)"
+        />
+      </g>
     </svg>
   );
 }
