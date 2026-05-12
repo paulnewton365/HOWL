@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getVerdict } from '../data/rubric';
+import { passwordHeaders } from './auth';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -118,13 +119,26 @@ export async function fetchReadById(id) {
 }
 
 export async function deleteRead(id) {
-  if (!supabase) return false;
-  const { error } = await supabase.from('reads').delete().eq('id', id);
-  if (error) {
-    console.error('[HOWL READ] deleteRead failed:', error);
-    return false;
+  if (!supabase) return { ok: false, reason: 'supabase-disabled' };
+  try {
+    const res = await fetch('/api/delete-read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...passwordHeaders(),
+      },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) return { ok: true };
+    const body = await res.json().catch(() => ({}));
+    return {
+      ok: false,
+      reason: res.status === 403 ? 'forbidden' : res.status === 401 ? 'unauthorized' : 'unknown',
+      message: body.error || `Server returned ${res.status}.`,
+    };
+  } catch (err) {
+    return { ok: false, reason: 'network', message: err.message };
   }
-  return true;
 }
 
 // Map a Supabase error into a category the UI can switch on.

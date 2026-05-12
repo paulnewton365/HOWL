@@ -139,9 +139,30 @@ The Anthropic key is server-side only. The client posts to `/api/claude`, which 
 
 The app is gated by a single shared password set in `ACCESS_PASSWORD`. Both the login form and every backend API call check against the same value, so the password can't be bypassed by skipping the login screen.
 
+The login form also captures the user's **email**, which is used purely for identity (admin vs regular user — see below). It's stored alongside the password in `localStorage` and sent in the `X-Howl-Email` header on every API call.
+
 To rotate the password, update `ACCESS_PASSWORD` on Vercel and redeploy. Every existing session will get a 401 on the next API call, which automatically signs them out and shows the login screen.
 
 This is intentionally light auth — fine for an internal team tool, not a substitute for real user accounts. The anon Supabase key is exposed in the bundle, so anyone with the URL could in principle hit the database directly. Don't put sensitive data in the `reads` table.
+
+---
+
+## Admin permissions
+
+One account is the **admin**. The admin can delete past reads from the archive; everyone else can browse the archive but doesn't see the delete button. Enforcement is server-side, so non-admins can't bypass it by tampering with the client.
+
+Two env vars set who the admin is. They default to `paul.newton@antennagroup.com` if unset:
+
+- `ADMIN_EMAIL` (server-side, authoritative) — the actual permission check happens here in `/api/delete-read`
+- `VITE_ADMIN_EMAIL` (client-side, UI only) — controls whether the trash icon renders
+
+Set both to the same value. The server is what matters for security; the client is just so the UI doesn't show buttons that won't work.
+
+A third env var is required for admin deletes to actually function:
+
+- `SUPABASE_SERVICE_ROLE_KEY` (server-side only) — copy from Supabase Project Settings → API → "service_role" → "secret". This bypasses RLS so the server can delete on the admin's behalf. **Never** prefix it with `VITE_` or it leaks into the browser bundle.
+
+To change the admin: update `ADMIN_EMAIL` and `VITE_ADMIN_EMAIL` on Vercel to the new email, redeploy, and have the new admin sign in with that exact email.
 
 ---
 
@@ -149,15 +170,20 @@ This is intentionally light auth — fine for an internal team tool, not a subst
 
 The app works without Supabase. Setting up Supabase adds two things:
 1. Every completed READ is automatically saved to a `reads` table.
-2. The intake page shows a "Previous Reads" section listing past reads with scores, verdict stamps, dates, a refresh button (re-runs the diagnostic), and a delete button.
+2. A "Previous Reads" archive accessible from the top nav, with search, verdict/category filters, and sort.
 
 Setup steps:
 
 1. Create a free project at https://supabase.com.
-2. Project Settings → API → copy the **Project URL** and the **anon public** key.
+2. Project Settings → API → copy three values:
+   - **Project URL** → `VITE_SUPABASE_URL`
+   - **`anon` `public`** key → `VITE_SUPABASE_ANON_KEY` (used by the browser)
+   - **`service_role` SECRET** key → `SUPABASE_SERVICE_ROLE_KEY` (server-only, used for admin deletes)
 3. SQL Editor → New query → paste the contents of `supabase-schema.sql` → Run.
-4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to your `.env` and to Vercel's environment variables.
+4. Add all three Supabase env vars (plus `ADMIN_EMAIL` and `VITE_ADMIN_EMAIL`) to your `.env` and to Vercel's environment variables.
 5. Redeploy.
+
+**Migration note**: If you already had the app running with the old schema (which let anon delete), re-running `supabase-schema.sql` will drop the `"anon delete"` policy. Deletes now exclusively flow through `/api/delete-read` with admin verification.
 
 If you ever want to clear all history, run `truncate table reads;` in the SQL Editor.
 

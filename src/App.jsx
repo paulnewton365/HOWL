@@ -19,6 +19,11 @@ import {
   setPassword,
   clearPassword,
   hasPassword,
+  hasEmail,
+  getUserEmail,
+  setUserEmail,
+  isAdmin,
+  adminEmailDisplay,
   passwordHeaders,
 } from './lib/auth';
 import {
@@ -110,18 +115,27 @@ function BuildBadge() {
 // ============================================================================
 
 function PasswordGate({ children }) {
-  const [authed, setAuthed] = useState(() => hasPassword());
-  const [verifying, setVerifying] = useState(() => hasPassword());
-  const [input, setInput] = useState('');
+  const sessionComplete = () => hasPassword() && hasEmail();
+
+  const [authed, setAuthed] = useState(sessionComplete);
+  const [verifying, setVerifying] = useState(sessionComplete);
+  const [emailInput, setEmailInput] = useState('');
+  const [pwdInput, setPwdInput] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
 
-  // Re-validate the cached password on mount. If the server now rejects it
-  // (rotated ACCESS_PASSWORD, redeploy, etc.), we clear the cache and bounce
-  // the user back to the login screen automatically instead of letting them
-  // bash against a 401 wall.
+  // On mount, validate the cached session against the server. Sessions from
+  // before admin support exist (password set, email missing) get bounced
+  // cleanly to the new login screen with a helpful message.
   useEffect(() => {
-    if (!hasPassword()) {
+    if (hasPassword() && !hasEmail()) {
+      clearPassword();
+      setAuthed(false);
+      setError('We added email-based admin permissions. Sign in again with your email and the team password.');
+      setVerifying(false);
+      return;
+    }
+    if (!sessionComplete()) {
       setVerifying(false);
       return;
     }
@@ -131,7 +145,7 @@ function PasswordGate({ children }) {
         const res = await fetch('/api/check-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: getPassword() }),
+          body: JSON.stringify({ password: getPassword(), email: getUserEmail() }),
         });
         if (cancelled) return;
         if (res.status === 401) {
@@ -152,16 +166,26 @@ function PasswordGate({ children }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!input.trim()) return;
+    const email = emailInput.trim().toLowerCase();
+    const pwd = pwdInput.trim();
+    if (!email || !pwd) {
+      setError('Email and password are both required.');
+      return;
+    }
+    if (!/.+@.+\..+/.test(email)) {
+      setError('Enter a valid email address.');
+      return;
+    }
     setChecking(true);
     try {
       const res = await fetch('/api/check-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: input.trim() }),
+        body: JSON.stringify({ password: pwd, email }),
       });
       if (res.ok) {
-        setPassword(input.trim());
+        setPassword(pwd);
+        setUserEmail(email);
         setAuthed(true);
       } else {
         setError('Wrong password.');
@@ -206,18 +230,33 @@ function PasswordGate({ children }) {
           Members only.
         </h1>
         <p style={{ color: 'var(--howl-ink-soft)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-          The Read is a HOWL tool. Sign in with the password your team gave you.
+          The Read is a HOWL tool. Sign in with your work email and the team password.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label-howl" htmlFor="email">Work email</label>
+            <input
+              id="email"
+              type="email"
+              autoFocus
+              autoComplete="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="input-howl"
+              disabled={checking}
+              placeholder="you@antennagroup.com"
+            />
+          </div>
+
           <div>
             <label className="label-howl" htmlFor="pwd">Password</label>
             <input
               id="pwd"
               type="password"
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              autoComplete="current-password"
+              value={pwdInput}
+              onChange={(e) => setPwdInput(e.target.value)}
               className="input-howl"
               disabled={checking}
             />
@@ -280,6 +319,7 @@ function HistoryView({ onLoad, onRerun, onReset }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
 
   // Filter + sort state
   const [search, setSearch] = useState('');
@@ -306,8 +346,17 @@ function HistoryView({ onLoad, onRerun, onReset }) {
 
   async function handleDelete(id) {
     setBusyId(id);
-    const ok = await deleteRead(id);
-    if (ok) setReads((rs) => rs.filter((r) => r.id !== id));
+    setDeleteError('');
+    const result = await deleteRead(id);
+    if (result.ok) {
+      setReads((rs) => rs.filter((r) => r.id !== id));
+    } else if (result.reason === 'forbidden') {
+      setDeleteError('Only the admin can delete reads.');
+    } else if (result.reason === 'unauthorized') {
+      setDeleteError('Your session expired. Sign in again to delete.');
+    } else {
+      setDeleteError(result.message || 'Delete failed.');
+    }
     setBusyId(null);
   }
 
@@ -350,8 +399,24 @@ function HistoryView({ onLoad, onRerun, onReset }) {
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 howl-fadein">
       <div className="mb-8">
-        <div className="howl-stamp mb-2" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
-          The archive
+        <div className="flex items-center gap-3 mb-2">
+          <div className="howl-stamp" style={{ fontSize: '0.875rem', color: 'var(--howl-coral)' }}>
+            The archive
+          </div>
+          {isAdmin() && (
+            <span
+              className="howl-stamp"
+              style={{
+                fontSize: '0.6875rem',
+                letterSpacing: '0.12em',
+                color: 'var(--howl-cream)',
+                background: 'var(--howl-ink)',
+                padding: '2px 8px',
+              }}
+            >
+              ADMIN
+            </span>
+          )}
         </div>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <h1 className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1 }}>
@@ -503,6 +568,24 @@ function HistoryView({ onLoad, onRerun, onReset }) {
             )}
           </div>
 
+          {deleteError && (
+            <div
+              className="card-howl p-3 mb-3 flex items-start gap-2"
+              style={{ borderColor: 'var(--howl-weak)', background: 'rgba(183, 53, 37, 0.04)' }}
+            >
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--howl-weak)' }} />
+              <span className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>{deleteError}</span>
+              <button
+                onClick={() => setDeleteError('')}
+                className="ml-auto shrink-0"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--howl-mute)' }}
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           {filtered.length === 0 ? (
             <div className="card-howl p-7 text-center" style={{ background: 'var(--howl-bone)' }}>
               <p className="text-sm" style={{ color: 'var(--howl-ink-soft)' }}>
@@ -560,24 +643,26 @@ function HistoryView({ onLoad, onRerun, onReset }) {
                     >
                       <RefreshCw size={14} />
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(r.id);
-                      }}
-                      disabled={busyId === r.id}
-                      title="Delete"
-                      className="shrink-0"
-                      style={{
-                        padding: '6px 8px',
-                        color: 'var(--howl-mute)',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(r.id);
+                        }}
+                        disabled={busyId === r.id}
+                        title="Delete (admin only)"
+                        className="shrink-0"
+                        style={{
+                          padding: '6px 8px',
+                          color: 'var(--howl-mute)',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -651,7 +736,7 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory }) {
             <button
               onClick={onSignOut}
               className="btn-ghost"
-              title="Sign out"
+              title={getUserEmail() ? `Sign out (${getUserEmail()}${isAdmin() ? ', admin' : ''})` : 'Sign out'}
               style={{ padding: '6px 10px' }}
             >
               <LogOut size={14} />
