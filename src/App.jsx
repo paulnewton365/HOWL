@@ -1364,7 +1364,7 @@ function Header({ onReset, showReset, onSignOut, onHistory, showHistory, onQuadr
               className="text-[10px] tracking-[0.15em] uppercase"
               style={{ color: 'var(--howl-mute)' }}
             >
-              A brand diagnostic
+              A diagnostic for impact leaders
             </div>
           </div>
         </div>
@@ -3186,7 +3186,7 @@ function SharedHeader() {
               className="text-[10px] tracking-[0.15em] uppercase"
               style={{ color: 'var(--howl-mute)' }}
             >
-              A brand diagnostic
+              A diagnostic for impact leaders
             </div>
           </div>
         </div>
