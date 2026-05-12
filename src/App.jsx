@@ -1123,11 +1123,11 @@ function QuadrantView({ onLoad, onReset }) {
                     />
                     {/* Brand label */}
                     <text
-                      x={x + 6}
-                      y={y + 3}
+                      x={x + 5}
+                      y={y + 2.5}
                       style={{
                         fontFamily: 'Inter, sans-serif',
-                        fontSize: isHovered ? 12 : 9.5,
+                        fontSize: isHovered ? 10 : 8,
                         fontWeight: isHovered ? 700 : 400,
                         fill: isHovered ? 'var(--howl-ink)' : 'var(--howl-ink-soft)',
                         pointerEvents: 'none',
@@ -1143,62 +1143,61 @@ function QuadrantView({ onLoad, onReset }) {
               {hovered && (() => {
                 const x = toX(hovered.overall_score);
                 const y = toY(hovered.belief_avg);
-                const tipW = 220;
-                const tipH = 76;
-                // Position tooltip above-right of dot, flip if near edge
-                const tipX = x + tipW > plotX1 ? x - tipW - 12 : x + 12;
-                const tipY = y - tipH - 12 < plotY0 ? y + 12 : y - tipH - 12;
+                const tipW = 150;
+                const tipH = 46;
+                // Position tooltip slightly above-right of dot, flip near edges
+                const tipX = x + tipW + 14 > plotX1 ? x - tipW - 10 : x + 10;
+                const tipY = y - tipH - 10 < plotY0 ? y + 10 : y - tipH - 10;
                 const catName =
                   CATEGORIES.find((c) => c.id === hovered.category)?.name || hovered.category;
-                const dateStr = new Date(hovered.created_at).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                });
                 return (
                   <foreignObject
                     x={tipX}
                     y={tipY}
                     width={tipW}
                     height={tipH}
-                    style={{ pointerEvents: 'none' }}
+                    style={{ pointerEvents: 'none', overflow: 'visible' }}
                   >
                     <div
                       xmlns="http://www.w3.org/1999/xhtml"
                       style={{
                         background: 'var(--howl-cream)',
                         border: '1.5px solid var(--howl-ink)',
-                        padding: '8px 10px',
+                        padding: '5px 8px',
                         fontFamily: 'Inter, sans-serif',
+                        lineHeight: 1.2,
                       }}
                     >
                       <div
                         style={{
                           fontFamily: 'Anton, Inter, sans-serif',
-                          fontSize: 14,
+                          fontSize: 11,
                           letterSpacing: '0.02em',
-                          lineHeight: 1.1,
-                          marginBottom: 4,
                           color: 'var(--howl-ink)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
                       >
                         {hovered.brand_name}
                       </div>
                       <div
                         style={{
-                          fontSize: 10,
+                          fontSize: 8,
                           textTransform: 'uppercase',
-                          letterSpacing: '0.1em',
+                          letterSpacing: '0.08em',
                           color: 'var(--howl-mute)',
-                          marginBottom: 4,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
                       >
-                        {catName} · {dateStr}
+                        {catName}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--howl-ink-soft)' }}>
-                        <span style={{ fontWeight: 600 }}>Signals</span> {hovered.overall_score}
-                        {'   '}·{'   '}
-                        <span style={{ fontWeight: 600 }}>Belief</span> {hovered.belief_avg}
+                      <div style={{ fontSize: 9, color: 'var(--howl-ink-soft)', marginTop: 1 }}>
+                        S <strong style={{ color: 'var(--howl-ink)' }}>{hovered.overall_score}</strong>
+                        {' · '}
+                        B <strong style={{ color: 'var(--howl-ink)' }}>{hovered.belief_avg}</strong>
                       </div>
                     </div>
                   </foreignObject>
