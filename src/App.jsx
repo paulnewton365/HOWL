@@ -1569,45 +1569,49 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
         </div>
 
         {/* Right: the form */}
-        <form onSubmit={handleSubmit} className="lg:col-span-3 card-howl p-5 sm:p-7 space-y-6">
+        <form onSubmit={handleSubmit} className="lg:col-span-3 space-y-5">
           <div className="howl-stamp" style={{ fontSize: '0.9375rem' }}>
             01. Pick A Read
           </div>
 
-          <div>
-            <label className="label-howl" htmlFor="brand">Brand</label>
-            <input
-              id="brand"
-              type="text"
-              value={brandName}
-              onChange={(e) => setBrandName(e.target.value)}
-              placeholder="Patagonia, Liquid Death, Notion, Glossier…"
-              className="input-howl"
-              disabled={disabled}
-            />
-          </div>
+          <div className="form-flood">
+            <div className="form-field">
+              <label className="label-flood" htmlFor="brand">
+                Brand<span className="req">*</span>
+              </label>
+              <input
+                id="brand"
+                type="text"
+                value={brandName}
+                onChange={(e) => setBrandName(e.target.value)}
+                placeholder="Patagonia, Liquid Death, Notion, Glossier…"
+                className="input-flood"
+                disabled={disabled}
+              />
+            </div>
 
-          <div>
-            <label className="label-howl" htmlFor="url">Website</label>
-            <input
-              id="url"
-              type="text"
-              value={websiteUrl}
-              onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="https://"
-              className="input-howl"
-              disabled={disabled}
-            />
-          </div>
+            <div className="form-field">
+              <label className="label-flood" htmlFor="url">
+                Website<span className="req">*</span>
+              </label>
+              <input
+                id="url"
+                type="text"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="https://"
+                className="input-flood"
+                disabled={disabled}
+              />
+            </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="label-howl" htmlFor="cat">Category</label>
+            <div className="form-field">
+              <label className="label-flood" htmlFor="cat">Category</label>
               <select
                 id="cat"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="input-howl"
+                className="select-flood"
                 disabled={disabled}
               >
                 {CATEGORIES.map((c) => (
@@ -1615,13 +1619,14 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="label-howl" htmlFor="bm">Business model</label>
+
+            <div className="form-field">
+              <label className="label-flood" htmlFor="bm">Business model</label>
               <select
                 id="bm"
                 value={businessModel}
                 onChange={(e) => setBusinessModel(e.target.value)}
-                className="input-howl"
+                className="select-flood"
                 disabled={disabled}
               >
                 {BUSINESS_MODELS.map((b) => (
@@ -1631,27 +1636,37 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
             </div>
           </div>
 
-          <div
-            className="howl-stamp pt-2"
-            style={{ fontSize: '0.9375rem', borderTop: '1px solid var(--howl-cream-deep)', paddingTop: '1.25rem' }}
-          >
-            02. Sharpen the READ <span style={{ fontWeight: 400, fontSize: '0.75rem', textTransform: 'none', letterSpacing: 0, color: 'var(--howl-mute)' }}>(optional)</span>
+          <div className="howl-stamp pt-2" style={{ fontSize: '0.9375rem' }}>
+            02. Sharpen the READ{' '}
+            <span
+              style={{
+                fontWeight: 400,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--howl-mute)',
+              }}
+            >
+              (optional)
+            </span>
           </div>
 
-          <div>
-            <label className="label-howl" htmlFor="ctx">
-              Anything else we should know
-            </label>
-            <textarea
-              id="ctx"
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              placeholder="Recent campaigns, links to coverage, Glassdoor/Trustpilot snippets, certifications, or any social handles you want us to focus on. Sharper inputs make a sharper READ."
-              className="input-howl"
-              rows={4}
-              disabled={disabled}
-              style={{ resize: 'vertical', fontFamily: 'inherit' }}
-            />
+          <div className="form-flood">
+            <div className="form-field">
+              <label className="label-flood" htmlFor="ctx">
+                Anything else we should know
+              </label>
+              <textarea
+                id="ctx"
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                placeholder="Recent campaigns, links to coverage, Glassdoor/Trustpilot snippets, certifications, or any social handles you want us to focus on. Sharper inputs make a sharper READ."
+                className="textarea-flood"
+                rows={4}
+                disabled={disabled}
+                style={{ resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
           </div>
 
           {error && (
@@ -1659,7 +1674,7 @@ function IntakeForm({ onSubmit, disabled, initialValues }) {
               className="flex items-start gap-2 p-3"
               style={{
                 border: '1.5px solid var(--howl-weak)',
-                background: 'rgba(183, 53, 37, 0.08)',
+                background: 'rgba(172, 0, 0, 0.06)',
                 color: 'var(--howl-weak)',
               }}
             >
@@ -1823,22 +1838,23 @@ function SignalEqualizer({ signals }) {
   }
 
   // ----- Palette tuned for the dark "screen" background -----
-  const SCREEN_BG = '#1A1611';
-  const UNLIT = '#2D2620';
-  // EARNED's ink #0A0A0A vanishes on dark; substitute with bone so the bar
-  // reads. Other surface colors have enough chroma to survive against dark.
+  const SCREEN_BG = '#000000';
+  const UNLIT = '#1F1B17';
+  // EARNED's ink #000000 vanishes on dark; substitute with the new bone tone
+  // so the bar reads. Other surface colors have enough chroma to survive
+  // against pure black.
   const SURFACE_COLOR_DARK = {
     WEBSITE: '#D85726',
     SOCIAL: '#F47245',
     REPUTATION: '#C29469',
-    EARNED: '#FAF7EF',
+    EARNED: '#F2F5F0',
   };
 
   // Tier color for the signal mean number above each group.
   // Mirrors VU semantics: dim coral at the bottom, tan in the middle,
   // bone-bright at the peak.
   function tierColorDark(score) {
-    if (score >= 70) return '#FAF7EF';
+    if (score >= 70) return '#F2F5F0';
     if (score >= 40) return '#C29469';
     return '#C24A2A';
   }
@@ -1870,7 +1886,7 @@ function SignalEqualizer({ signals }) {
           fontFamily: 'Anton, Inter, sans-serif',
           fontSize: 12,
           letterSpacing: '0.18em',
-          fill: '#FAF7EF',
+          fill: '#F2F5F0',
           opacity: 0.55,
         }}
       >
@@ -1967,7 +1983,7 @@ function SignalEqualizer({ signals }) {
                 fontSize: 13,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                fill: '#FAF7EF',
+                fill: '#F2F5F0',
                 opacity: 0.88,
               }}
             >
@@ -2004,7 +2020,7 @@ function SignalEqualizer({ signals }) {
                       fontFamily: 'Anton, Inter, sans-serif',
                       fontSize: 10,
                       letterSpacing: '0.13em',
-                      fill: '#FAF7EF',
+                      fill: '#F2F5F0',
                       opacity: 0.55,
                     }}
                   >
