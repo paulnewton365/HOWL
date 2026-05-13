@@ -14,7 +14,6 @@ import {
   BELIEF_DIMENSIONS,
   BELIEF_IDS,
 } from './data/rubric';
-import pkg from '../package.json';
 import {
   getPassword,
   setPassword,
@@ -63,8 +62,9 @@ import {
   Pencil,
 } from 'lucide-react';
 
-// Auto-incremented on every build via scripts/bump-version.cjs.
-const APP_VERSION = pkg.version;
+// Build-time version metadata, injected by vite.config.js. Baked into the
+// bundle at build time so the badge reflects this specific deployment.
+const APP_VERSION = `v${typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0'} · ${typeof __BUILD_DATE__ === 'string' ? __BUILD_DATE__ : ''}${typeof __BUILD_SHA__ === 'string' && __BUILD_SHA__ !== 'local' ? ` · ${__BUILD_SHA__}` : ''}`;
 
 // Official HOWL logo, served from HOWL's CDN. Single source of truth, if the
 // agency updates the mark, every deployed instance picks it up automatically.
@@ -1196,7 +1196,9 @@ function QuadrantView({ onLoad, onReset }) {
                   >
                     {/* Larger invisible hit-target for hover and click */}
                     <circle cx={x} cy={y} r={10} fill="transparent" />
-                    {/* The dot */}
+                    {/* The dot. Brand name is shown only on hover via the
+                        foreignObject tooltip below, to keep the chart
+                        readable as the archive grows. */}
                     <circle
                       cx={x}
                       cy={y}
@@ -1205,20 +1207,6 @@ function QuadrantView({ onLoad, onReset }) {
                       stroke="var(--howl-cream)"
                       strokeWidth={isHovered ? 2 : 1.25}
                     />
-                    {/* Brand label */}
-                    <text
-                      x={x + 5}
-                      y={y + 2.5}
-                      style={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: isHovered ? 10 : 8,
-                        fontWeight: isHovered ? 700 : 400,
-                        fill: isHovered ? 'var(--howl-ink)' : 'var(--howl-ink-soft)',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {r.brand_name}
-                    </text>
                   </g>
                 );
               })}
