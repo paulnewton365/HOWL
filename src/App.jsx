@@ -294,7 +294,7 @@ function PasswordGate({ children }) {
 }
 
 // ============================================================================
-// VERDICT STAMP — small pill showing Whispering / Speaking / Commanding / Howling
+// VERDICT STAMP — small pill showing Whispering / Speaking / Calling / Howling
 // ============================================================================
 
 function VerdictStamp({ score, size = 'sm' }) {
@@ -324,10 +324,10 @@ function VerdictStamp({ score, size = 'sm' }) {
 
 function HistoryView({ onLoad, onRerun, onReset }) {
   // Color the score number by tier, so on mobile (where we hide the verdict
-  // pill) the color alone tells you Whispering / Speaking / Commanding / Howling.
+  // pill) the color alone tells you Whispering / Speaking / Calling / Howling.
   function scoreColorFor(score) {
     if (score >= 80) return 'var(--howl-strong)';
-    if (score >= 60) return 'var(--howl-commanding)';
+    if (score >= 60) return 'var(--howl-calling)';
     if (score >= 40) return 'var(--howl-mid)';
     return 'var(--howl-weak)';
   }
@@ -1320,7 +1320,7 @@ function DuplicateWarning({ existing, onViewExisting, onProceed, onCancel }) {
 
   function scoreColor(score) {
     if (score >= 80) return 'var(--howl-strong)';
-    if (score >= 60) return 'var(--howl-commanding)';
+    if (score >= 60) return 'var(--howl-calling)';
     if (score >= 40) return 'var(--howl-mid)';
     return 'var(--howl-weak)';
   }
@@ -2115,7 +2115,7 @@ function ReadReport({ report, onReset, brandMeta, saveStatus, savedReadId, readO
 
   function scoreColor(score) {
     if (score >= 80) return 'var(--howl-strong)';
-    if (score >= 60) return 'var(--howl-commanding)';
+    if (score >= 60) return 'var(--howl-calling)';
     if (score >= 40) return 'var(--howl-mid)';
     return 'var(--howl-weak)';
   }
@@ -2693,7 +2693,7 @@ function BeliefSection({ belief }) {
   function scoreColor(score) {
     if (score === null) return 'var(--howl-mute)';
     if (score >= 80) return 'var(--howl-strong)';
-    if (score >= 60) return 'var(--howl-commanding)';
+    if (score >= 60) return 'var(--howl-calling)';
     if (score >= 40) return 'var(--howl-mid)';
     return 'var(--howl-weak)';
   }
@@ -3056,7 +3056,7 @@ Scoring rules:
 - Surface scores can diverge meaningfully within a single signal, e.g., VOLUME may be 75 on WEBSITE but 35 on EARNED. Surface that pattern in the "read".
 - Evidence MUST be specific. Name the page, the campaign, the partner, the language pattern.
 - Voice: HOWL. Short sentences.
-- MANDATORY: Always return EXACTLY 3 items in the "edge" array and EXACTLY 3 items in the "play" array. Never return empty arrays. Never return fewer than 3. This applies to every brand regardless of overall score. If no signal is weak, target the 3 LOWEST-scoring signals to push them up the verdict scale (Whispering 0-39, Speaking 40-59, Commanding 60-79, Howling 80-100).
+- MANDATORY: Always return EXACTLY 3 items in the "edge" array and EXACTLY 3 items in the "play" array. Never return empty arrays. Never return fewer than 3. This applies to every brand regardless of overall score. If no signal is weak, target the 3 LOWEST-scoring signals to push them up the verdict scale (Whispering 0-39, Speaking 40-59, Calling 60-79, Howling 80-100).
 - Each recommendation must be BRAND-SPECIFIC. Reference the brand's actual evidence (a page, a campaign, a language tic, a missing surface presence) in the rationale. No generic agency boilerplate. No advice that could apply to any brand in the category.
 - EDGE recommendations are strategic. PLAY recommendations are creative provocations.
 - BELIEF GAP RULE for EDGE: Before finalizing EDGE, compute the Belief average (mean of trusted/proven/participatory scores) and compare it to the Six Signals average. The deltas reshape EDGE as follows:

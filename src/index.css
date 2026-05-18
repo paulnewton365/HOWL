@@ -19,7 +19,7 @@
 
   /* semantic */
   --howl-strong:       #1F7A4D;   /* score 80-100, Howling */
-  --howl-commanding:   #D85726;   /* score 60-79, Commanding */
+  --howl-calling:      #D85726;   /* score 60-79, Calling */
   --howl-mid:          #C28A1F;   /* score 40-59, Speaking */
   --howl-weak:         #AC0000;   /* score 0-39, Whispering / form error red */
 }

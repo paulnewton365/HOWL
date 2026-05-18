@@ -29,13 +29,13 @@ export const VERDICT_TIERS = [
     description: 'The brand is competent and present, but it is not pulling people in. The signals are there. The provocation is not. Without sharper identity and earned cultural moments, the work stays in the safe lane.',
   },
   {
-    id: 'commanding',
-    name: 'Commanding',
+    id: 'calling',
+    name: 'Calling',
     min: 60,
     max: 79,
-    color: 'var(--howl-commanding)',
-    headline: "You're commanding the room. Not yet defining the category.",
-    description: 'The brand has earned attention. Owned channels are sharp, social moves are landing, and earned coverage is following. What is missing is the cultural ownership that separates a strong brand from a defining one. The next move is to convert attention into authorship: name a position only this brand can hold, and make competitors react to it.',
+    color: 'var(--howl-calling)',
+    headline: "You're calling. Heads are turning toward the sound.",
+    description: 'The brand has raised its voice. Owned channels are sharp, social moves are landing, and earned coverage is following. The room is turning toward the sound. What is missing is the cultural ownership that separates an audible brand from a defining one. The next move: convert attention into authorship. Name a position only this brand can hold, and make the category react to it.',
   },
   {
     id: 'howling',
